@@ -754,6 +754,26 @@ function translateBerries() {
         const name = typeof berryType === 'number' ? BerryType[berryType] : berryType;
         return TranslationHelper.toggleRaw ? name : (Translation.Berry[name] || name);
     };
+
+    // 修改浆果图鉴模态框中的浆果名称绑定
+    waitFor(() => document.querySelector('#berryDexModal'), { timeoutMs: 30000 }).then(() => {
+        $('#berryDexModal h5[data-bind="text: BerryType[$data]"]').attr(
+            'data-bind', 'text: getBerryDisplayName($data)'
+        );
+        console.log('[翻译] 浆果图鉴DOM绑定已修改');
+    }).catch(err => {
+        console.warn('[翻译] 浆果图鉴DOM绑定修改失败', err);
+    });
+
+    // 修改农场显示中的浆果名称
+    waitFor(() => document.querySelector('#farmDisplay'), { timeoutMs: 30000 }).then(() => {
+        $('knockout[data-bind="text: BerryType[$data]"]').attr(
+            'data-bind', 'text: getBerryDisplayName($data)'
+        );
+        console.log('[翻译] 农场浆果名称DOM绑定已修改');
+    }).catch(err => {
+        console.warn('[翻译] 农场浆果名称DOM绑定修改失败', err);
+    });
 }
 
 // ========== 徽章翻译 ==========
@@ -773,6 +793,27 @@ function translateBadges() {
         const badgeName = typeof badge === 'number' ? BadgeEnums[badge] : badge;
         return TranslationHelper.toggleRaw ? badgeName : (allBadges[badgeName] || badgeName);
     };
+
+    // 创建地区名称翻译函数
+    window.getRegionDisplayName = (region) => {
+        if (TranslationHelper.toggleRaw) return region;
+        return Translation.Regions?.Region?.[region] || region;
+    };
+
+    // 等待徽章盒模态框加载后修改DOM绑定
+    waitFor(() => document.querySelector('#badgeCaseModal'), { timeoutMs: 30000 }).then(() => {
+        // 修改地区名称绑定
+        $('#badgeCaseModal h4[data-bind="text: $data[0]"]').attr(
+            'data-bind', 'text: getRegionDisplayName($data[0])'
+        );
+        // 修改徽章名称绑定
+        $('#badgeCaseModal p[data-bind="text: $data.replace(/_/g, \' \')"]').attr(
+            'data-bind', 'text: getBadgeDisplayName($data)'
+        );
+        console.log('[翻译] 徽章盒DOM绑定已修改');
+    }).catch(err => {
+        console.warn('[翻译] 徽章盒DOM绑定修改失败', err);
+    });
 }
 
 // ========== 地下城翻译 ==========
@@ -818,6 +859,21 @@ function translateUndergroundItems() {
     window.getUndergroundItemDisplayName = (itemName) => {
         return TranslationHelper.toggleRaw ? itemName : (allUnderground[itemName] || itemName);
     };
+
+    // 修改地下物品的displayName属性
+    if (typeof UndergroundItems !== 'undefined' && UndergroundItems.list) {
+        UndergroundItems.list.forEach(item => {
+            const translation = allUnderground[item.name];
+            if (translation) {
+                const rawName = item.displayName || item.name;
+                Object.defineProperty(item, 'displayName', {
+                    get: () => TranslationHelper.toggleRaw ? rawName : translation,
+                    configurable: true
+                });
+            }
+        });
+        console.log('[翻译] 地下物品displayName属性已修改');
+    }
 }
 
 // 执行新增翻译
@@ -861,6 +917,25 @@ function translateStones() {
             || Translation.Stone.zCrystal?.[stone]
             || stone;
     };
+
+    // 直接修改ItemList中进化石的displayName属性
+    if (typeof ItemList !== 'undefined') {
+        Object.entries(ItemList).forEach(([key, item]) => {
+            if (item && item.type === 'evolution') {
+                const translation = Translation.Stone.evolutionStone?.[key]
+                    || Translation.Stone.megaStone?.[key]
+                    || Translation.Stone.zCrystal?.[key];
+                if (translation) {
+                    const rawName = item.displayName;
+                    Object.defineProperty(item, 'displayName', {
+                        get: () => TranslationHelper.toggleRaw ? rawName : translation,
+                        configurable: true
+                    });
+                }
+            }
+        });
+        console.log('[翻译] 进化石displayName属性已修改');
+    }
 }
 
 // ========== 农场翻译 ==========
@@ -905,6 +980,40 @@ function translateKeyItems() {
         const name = typeof item === 'number' ? OakItemType[item] : item;
         return TranslationHelper.toggleRaw ? name : (Translation.KeyItem.oakItem?.[name] || name);
     };
+
+    // 修改KeyItems的displayName
+    if (typeof KeyItems !== 'undefined' && KeyItems.list) {
+        Object.values(KeyItems.list).forEach(item => {
+            const name = KeyItemType[item.id];
+            const translation = Translation.KeyItem.keyItem?.[name];
+            if (translation) {
+                const rawName = item.displayName;
+                Object.defineProperty(item, 'displayName', {
+                    get: () => TranslationHelper.toggleRaw ? rawName : translation,
+                    configurable: true
+                });
+            }
+        });
+        console.log('[翻译] KeyItems displayName属性已修改');
+    }
+
+    // 修改OakItems的displayName（需要等待游戏加载）
+    waitFor(() => App?.game?.oakItems?.itemList, { timeoutMs: 30000 }).then(() => {
+        App.game.oakItems.itemList.forEach(item => {
+            const name = OakItemType[item.id];
+            const translation = Translation.KeyItem.oakItem?.[name];
+            if (translation) {
+                const rawName = item.displayName;
+                Object.defineProperty(item, 'displayName', {
+                    get: () => TranslationHelper.toggleRaw ? rawName : translation,
+                    configurable: true
+                });
+            }
+        });
+        console.log('[翻译] OakItems displayName属性已修改');
+    }).catch(err => {
+        console.warn('[翻译] OakItems displayName修改失败', err);
+    });
 }
 
 // 执行新增翻译
