@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.27
+// @version      0.10.28
 // @description  采用内核汉化形式，目前汉化范围：所有任务线、NPC、成就、地区、城镇、道路、道馆
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
-// @updateURL    https://raw.githubusercontent.com/mianfeipiao123/poke-clicker-auto/main/%E5%AE%9D%E5%8F%AF%E6%A2%A6%E7%82%B9%E5%87%BB%EF%BC%88Poke%20Clicker%EF%BC%89%E5%86%85%E6%A0%B8%E6%B1%89%E5%8C%96%E8%84%9A%E6%9C%AC.user.js
-// @downloadURL  https://raw.githubusercontent.com/mianfeipiao123/poke-clicker-auto/main/%E5%AE%9D%E5%8F%AF%E6%A2%A6%E7%82%B9%E5%87%BB%EF%BC%88Poke%20Clicker%EF%BC%89%E5%86%85%E6%A0%B8%E6%B1%89%E5%8C%96%E8%84%9A%E6%9C%AC.user.js
+// @updateURL    https://raw.githubusercontent.com/mianfeipiao123/poke-clicker-auto/main/%E5%AE%9D%E5%8F%AF%E6%A2%A6%E7%82%B9%E5%87%BB%E8%84%9A%E6%9C%AC.user.js
+// @downloadURL  https://raw.githubusercontent.com/mianfeipiao123/poke-clicker-auto/main/%E5%AE%9D%E5%8F%AF%E6%A2%A6%E7%82%B9%E5%87%BB%E8%84%9A%E6%9C%AC.user.js
 // @match        http://localhost:3000/
 // @match        https://www.pokeclicker.com
 // @match        https://g8hh.github.io/pokeclicker/
