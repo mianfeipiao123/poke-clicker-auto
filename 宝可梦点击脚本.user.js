@@ -160,10 +160,16 @@
     function readCache(resource) {
         const cache = localStorage.getItem(storageKey(resource));
         if (!cache) {
+            console.log(LOG_PREFIX, `缓存不存在: ${resource}`);
             return null;
         }
         try {
-            return JSON.parse(cache);
+            const parsed = JSON.parse(cache);
+            if (resource === 'UI') {
+                console.log(LOG_PREFIX, `从缓存读取UI:`, parsed);
+                console.log(LOG_PREFIX, `UI缓存有menu字段:`, !!parsed.menu);
+            }
+            return parsed;
         } catch (error) {
             console.warn(LOG_PREFIX, "缓存解析失败，已清空", resource, error);
             localStorage.removeItem(storageKey(resource));
@@ -336,6 +342,7 @@ const CDN = {
     async function loadAllTranslations() {
         await Promise.all(
             resources.map(async (resource) => {
+                console.log(LOG_PREFIX, `开始加载资源: ${resource}`);
                 Translation[resource] = await FetchResource(resource).catch((error) => {
                     const cache = readCache(resource);
                     if (cache) {
@@ -348,6 +355,7 @@ const CDN = {
                     }
                     return {};
                 });
+                console.log(LOG_PREFIX, `资源加载完成: ${resource}`, Translation[resource]);
             })
         );
     }
@@ -710,6 +718,8 @@ Object.defineProperty(Gym.prototype, "imagePath", {
 });
 
 // ========== UI界面翻译 ==========
+// UI翻译数据从CDN加载（Translation.UI）
+
 // 辅助函数：获取嵌套对象的值
 function getNestedValue(obj, path) {
     if (!obj || !path) return undefined;
@@ -718,25 +728,40 @@ function getNestedValue(obj, path) {
 
 // 静态UI文本翻译
 function translateStaticUI() {
-    if (!Translation.UI) return;
+    console.log('[UI翻译] 开始执行translateStaticUI');
+    console.log('[UI翻译] Translation.UI:', Translation.UI);
+    console.log('[UI翻译] Translation.UI.menu:', Translation.UI?.menu);
+    if (!Translation.UI) {
+        console.log('[UI翻译] Translation.UI不存在，退出');
+        return;
+    }
+    if (!Translation.UI.menu) {
+        console.log('[UI翻译] Translation.UI.menu不存在，退出');
+        return;
+    }
 
     // 主菜单按钮
     const menuButton = document.querySelector('#startMenu .dropdown-toggle');
+    console.log('[UI翻译] 主菜单按钮:', menuButton);
     if (menuButton && Translation.UI.menu?.['Start Menu']) {
         const textNode = Array.from(menuButton.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
         if (textNode) {
             textNode.textContent = Translation.UI.menu['Start Menu'] + '\n';
+            console.log('[UI翻译] 主菜单按钮翻译成功');
         }
     }
 
     // 主菜单项
-    document.querySelectorAll('#startMenu .dropdown-item').forEach(el => {
+    const menuItems = document.querySelectorAll('#startMenu .dropdown-item');
+    console.log('[UI翻译] 主菜单项数量:', menuItems.length);
+    menuItems.forEach(el => {
         const text = el.textContent.trim();
         const translation = Translation.UI.menu?.[text];
         if (translation) {
             el.textContent = translation;
         }
     });
+    console.log('[UI翻译] translateStaticUI执行完成');
 
     // 设置标签页
     document.querySelectorAll('#settingsModal .nav-link').forEach(el => {
@@ -1114,8 +1139,16 @@ if (failed.length == 0) {
         message: `汉化加载完毕\n可以正常加载存档\n\n<div class="d-flex" style="justify-content: space-around;"><button class="btn btn-block btn-info m-0 col-5" onclick="window.PCHForceRefreshTranslation()">清空汉化缓存</button><button class="btn btn-block btn-info m-0 col-5" onclick="window.PCHImportAction()">本地导入汉化</button></div>`,
         timeout: 15000,
     });
-    // 初始化UI翻译
-    translateStaticUI();
+    // 初始化UI翻译 - 等待DOM元素渲染完成
+    waitFor(
+        () => document.querySelector('#startMenu .dropdown-toggle'),
+        { timeoutMs: 30000, intervalMs: 500, name: '主菜单按钮' }
+    ).then(() => {
+        console.log(LOG_PREFIX, 'DOM元素已渲染，开始UI翻译');
+        translateStaticUI();
+    }).catch((err) => {
+        console.warn(LOG_PREFIX, 'UI翻译等待超时', err);
+    });
     setupModalTranslation();
 } else {
     Notifier.notify({
