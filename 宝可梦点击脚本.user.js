@@ -150,7 +150,7 @@
     installLocalesRequestRewrite();
 
     const requiredResources = ["QuestLine", "Town", "NPC", "Achievement", "Regions", "Route", "Gym"];
-    const optionalResources = ["UI"];
+    const optionalResources = ["UI", "Items", "Berry", "Badge", "Dungeon", "Underground"];
     const resources = [...requiredResources, ...optionalResources];
     const failed = [];
 
@@ -717,6 +717,116 @@ Object.defineProperty(Gym.prototype, "imagePath", {
     },
 });
 
+// ========== 物品翻译 ==========
+function translateItems() {
+    if (!Translation.Items) return;
+
+    // 合并所有分类的翻译
+    const allItems = {};
+    Object.values(Translation.Items).forEach(category => {
+        if (typeof category === 'object') {
+            Object.assign(allItems, category);
+        }
+    });
+
+    Object.entries(ItemList).forEach(([key, item]) => {
+        if (!item || item._translationApplied) return;
+
+        const rawDisplayName = item.displayName;
+        const translatedName = allItems[key] || allItems[rawDisplayName];
+
+        if (translatedName) {
+            Object.defineProperty(item, 'displayName', {
+                get: () => TranslationHelper.toggleRaw ? rawDisplayName : translatedName,
+                configurable: true
+            });
+            item._translationApplied = true;
+        }
+    });
+}
+
+// ========== 浆果翻译 ==========
+function translateBerries() {
+    if (!Translation.Berry) return;
+
+    // 创建浆果显示名称获取函数
+    window.getBerryDisplayName = (berryType) => {
+        const name = typeof berryType === 'number' ? BerryType[berryType] : berryType;
+        return TranslationHelper.toggleRaw ? name : (Translation.Berry[name] || name);
+    };
+}
+
+// ========== 徽章翻译 ==========
+function translateBadges() {
+    if (!Translation.Badge) return;
+
+    // 合并所有地区的徽章翻译
+    const allBadges = {};
+    Object.values(Translation.Badge).forEach(region => {
+        if (typeof region === 'object') {
+            Object.assign(allBadges, region);
+        }
+    });
+
+    // 创建徽章显示名称获取函数
+    window.getBadgeDisplayName = (badge) => {
+        const badgeName = typeof badge === 'number' ? BadgeEnums[badge] : badge;
+        return TranslationHelper.toggleRaw ? badgeName : (allBadges[badgeName] || badgeName);
+    };
+}
+
+// ========== 地下城翻译 ==========
+function translateDungeons() {
+    if (!Translation.Dungeon || typeof dungeonList === 'undefined') return;
+
+    // 合并所有地区的地下城翻译
+    const allDungeons = {};
+    Object.values(Translation.Dungeon).forEach(region => {
+        if (typeof region === 'object') {
+            Object.assign(allDungeons, region);
+        }
+    });
+
+    Object.values(dungeonList).forEach(dungeon => {
+        if (!dungeon || dungeon._translationApplied) return;
+
+        const rawName = dungeon.name;
+        const translatedName = allDungeons[rawName];
+
+        if (translatedName) {
+            dungeon.displayName = translatedName;
+            dungeon._translationApplied = true;
+        } else {
+            dungeon.displayName = rawName;
+        }
+    });
+}
+
+// ========== 地下物品翻译 ==========
+function translateUndergroundItems() {
+    if (!Translation.Underground) return;
+
+    // 合并所有分类的翻译
+    const allUnderground = {};
+    Object.values(Translation.Underground).forEach(category => {
+        if (typeof category === 'object') {
+            Object.assign(allUnderground, category);
+        }
+    });
+
+    // 创建地下物品显示名称获取函数
+    window.getUndergroundItemDisplayName = (itemName) => {
+        return TranslationHelper.toggleRaw ? itemName : (allUnderground[itemName] || itemName);
+    };
+}
+
+// 执行新增翻译
+translateItems();
+translateBerries();
+translateBadges();
+translateDungeons();
+translateUndergroundItems();
+
 // ========== UI界面翻译 ==========
 // UI翻译数据从CDN加载（Translation.UI）
 
@@ -955,6 +1065,35 @@ TranslationHelper.ExportTranslation.Route = function () {
     return json;
 };
 
+// 新增导出功能
+TranslationHelper.ExportTranslation.Items = function () {
+    const json = {};
+    Object.entries(ItemList).forEach(([key, item]) => {
+        if (item && item.displayName) {
+            json[key] = Translation.Items?.[key] || "";
+        }
+    });
+    return json;
+};
+
+TranslationHelper.ExportTranslation.Berry = function () {
+    const json = {};
+    Object.keys(BerryType).forEach(key => {
+        if (isNaN(Number(key)) && key !== 'None') {
+            json[key] = Translation.Berry?.[key] || "";
+        }
+    });
+    return json;
+};
+
+TranslationHelper.ExportTranslation.Dungeon = function () {
+    const json = {};
+    Object.keys(dungeonList).forEach(name => {
+        json[name] = Translation.Dungeon?.[name] || "";
+    });
+    return json;
+};
+
 TranslationHelper.ImportTranslation = async function (files) {
     for (const file of files) {
         const name = file.name;
@@ -1022,6 +1161,35 @@ if (CoreModule) {
         QuestLine: (questLineName) => Translation.QuestLine[questLineName]?.name ?? questLineName,
         Gym: (leaderName) => Translation.Gym[leaderName] ?? leaderName,
         Achievement: (achievementName) => Translation.AchievementName[achievementName] ?? achievementName,
+        // 新增翻译API
+        Item: (itemName) => {
+            if (!Translation.Items) return itemName;
+            for (const category of Object.values(Translation.Items)) {
+                if (typeof category === 'object' && category[itemName]) {
+                    return category[itemName];
+                }
+            }
+            return itemName;
+        },
+        Berry: (berryName) => Translation.Berry?.[berryName] ?? berryName,
+        Dungeon: (dungeonName) => {
+            if (!Translation.Dungeon) return dungeonName;
+            for (const region of Object.values(Translation.Dungeon)) {
+                if (typeof region === 'object' && region[dungeonName]) {
+                    return region[dungeonName];
+                }
+            }
+            return dungeonName;
+        },
+        Badge: (badgeName) => {
+            if (!Translation.Badge) return badgeName;
+            for (const region of Object.values(Translation.Badge)) {
+                if (typeof region === 'object' && region[badgeName]) {
+                    return region[badgeName];
+                }
+            }
+            return badgeName;
+        },
     };
 
     CoreModule.UIDOM.push(`
