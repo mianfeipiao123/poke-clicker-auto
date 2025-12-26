@@ -28,7 +28,9 @@
     const LOG_PREFIX = "PokeClickerHelper-Translation";
     const STORAGE_PREFIX = "PokeClickerHelper-Translation";
 
-    const resources = ["QuestLine", "Town", "NPC", "Achievement", "Regions", "Route", "Gym", "UI"];
+    const requiredResources = ["QuestLine", "Town", "NPC", "Achievement", "Regions", "Route", "Gym"];
+    const optionalResources = ["UI"];
+    const resources = [...requiredResources, ...optionalResources];
     const failed = [];
 
     const storageKey = (resource) => `${STORAGE_PREFIX}-${resource}`;
@@ -219,7 +221,9 @@ const CDN = {
                         return cache;
                     }
                     console.warn(LOG_PREFIX, "all failed获取json", resource, error);
-                    failed.push(resource);
+                    if (requiredResources.includes(resource)) {
+                        failed.push(resource);
+                    }
                     return {};
                 });
             })
