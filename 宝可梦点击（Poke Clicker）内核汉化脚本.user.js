@@ -1,9 +1,8 @@
 // ==UserScript==
-// @name         宝可梦点击（Poke Clicker）内核汉化脚本
+// @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.26
+// @version      0.10.27
 // @description  采用内核汉化形式，目前汉化范围：所有任务线、NPC、成就、地区、城镇、道路、道馆
-// @author       DreamNya, ICEYe, iktsuarpok, 我是谁？, 顶不住了, 银☆星, TerVoid, mianfeipiao123
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
 // @updateURL    https://raw.githubusercontent.com/mianfeipiao123/poke-clicker-auto/main/%E5%AE%9D%E5%8F%AF%E6%A2%A6%E7%82%B9%E5%87%BB%EF%BC%88Poke%20Clicker%EF%BC%89%E5%86%85%E6%A0%B8%E6%B1%89%E5%8C%96%E8%84%9A%E6%9C%AC.user.js
@@ -49,7 +48,7 @@ const now = Date.now();
 const failed = [];
 
 Notifier.notify({
-    title: "宝可梦点击（Poke Clicker）内核汉化脚本",
+    title: "宝可梦点击脚本",
     message: `汉化正在加载中\n此时加载存档可能导致游戏错误\n若超过1分钟此提示仍未消失，则脚本可能运行出错`,
     timeout: 600000,
 });
@@ -567,7 +566,7 @@ TranslationHelper.ImportTranslation = async function (files) {
         const type = name.replace(/\.json$/, "");
         if (!resources.includes(type)) {
             Notifier.notify({
-                title: "宝可梦点击（Poke Clicker）内核汉化脚本",
+                title: "宝可梦点击脚本",
                 message: `导入本地汉化json失败\n不支持的文件名：${name}`,
                 timeout: 6000000,
             });
@@ -583,7 +582,7 @@ TranslationHelper.ImportTranslation = async function (files) {
                 localStorage.setItem(`PokeClickerHelper-Translation-${type}-lastModified`, now);
                 console.log("PokeClickerHelper-Translation", "本地导入json", type);
                 Notifier.notify({
-                    title: "宝可梦点击（Poke Clicker）内核汉化脚本",
+                    title: "宝可梦点击脚本",
                     message: `导入本地汉化json成功\n刷新游戏后生效：${name}`,
                     type: 1,
                     timeout: 6000000,
@@ -730,13 +729,13 @@ window.PCHForceRefreshTranslation = (refresh = true) => {
 
 if (failed.length == 0) {
     Notifier.notify({
-        title: "宝可梦点击（Poke Clicker）内核汉化脚本",
+        title: "宝可梦点击脚本",
         message: `汉化加载完毕\n可以正常加载存档\n\n<div class="d-flex" style="justify-content: space-around;"><button class="btn btn-block btn-info m-0 col-5" onclick="window.PCHForceRefreshTranslation()">清空汉化缓存</button><button class="btn btn-block btn-info m-0 col-5" onclick="window.PCHImportAction()">本地导入汉化</button></div>`,
         timeout: 15000,
     });
 } else {
     Notifier.notify({
-        title: "宝可梦点击（Poke Clicker）内核汉化脚本",
+        title: "宝可梦点击脚本",
         message: `请求汉化json失败，请检查网络链接或更新脚本\n无法完成汉化：${failed.join(
             " / "
         )}\n\n<div class="d-flex" style="justify-content: space-around;"><button class="btn btn-block btn-info m-0 col-5" onclick="window.PCHForceRefreshTranslation()">清空汉化缓存</button><button class="btn btn-block btn-info m-0 col-5" onclick="window.PCHImportAction()">本地导入汉化</button></div>`,
