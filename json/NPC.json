@@ -356,7 +356,10 @@
         "Piers": "聂梓",
         "Scientist": "研究员",
         "Cogita": "吾思",
-        "Student Emily": "学生椰米莉"
+        "Student Emily": "学生椰米莉",
+        "Alolan Astronomer": "阿罗拉天文学家",
+        "Mimikyu trainer": "谜拟Q训练家",
+        "Soot Collector": "煤灰收集者"
     },
     "NPCDialog": {
         "Good of you to come see me. I need you to pick up something for me. A special kind of Poké Ball, found by Professor Ivy. She lives on one of the Sevii Islands, east of Three Island.": "你能来看我真是太好了。我需要你帮我拿一样东西。一个特殊的宝可梦球，是内木博士发现的。她住在七之岛中的一个岛上，位于第３岛的东边。",
@@ -2009,6 +2012,18 @@
         "If everything were straightforward, what meaning would there be in living as long as we do?": "如果一切都是那么简单明了，我们活这么久又有什么意义呢？",
         "\"Once there was a god of field, and once there was a god of spring. Upon Hisui's winds it wheeled, brought life to every growing thing...\" Was that how that old verse went?": "\"曾经有一个田野之神，也有一个春天之神。它随洗翠的风旋转，为每一个生长的事物带来生命……\"那是那古老诗句的内容吗？",
         "I have passed on to you all there is to pass. Where history goes from here...I leave to you and your companions to see through.": "我已经传递给你所有需要传递的东西。历史从这里走向何方……我留给你和你的伙伴们去洞察。",
-        "Hey, hey, did you hear? A group of students saw some super rare Pokémon on {ROUTE_NAME}!": "嘿，嘿，你听说了吗？一群学生在{ROUTE_NAME}看到了一些超级稀有的宝可梦！"
+        "Hey, hey, did you hear? A group of students saw some super rare Pokémon on {ROUTE_NAME}!": "嘿，嘿，你听说了吗？一群学生在{ROUTE_NAME}看到了一些超级稀有的宝可梦！",
+        "All righty, be seeing you and your <b>NEW‑COLLECTION</b>!": "好嘞，再见啦，你和你的<b>新收藏</b>！",
+        "Blegh! I've taken three soaks in the hot springs and I can still taste the soot!": "呕！我在温泉里泡了三次，嘴里还是一股煤灰味！",
+        "But please leave it alone! It has been through too much already!": "但请别去打扰它！它已经经历太多了！",
+        "I have been studying Cosmoem and noticed that it needs the light from either the sun or the moon to reach its fullest potential.": "我一直在研究科斯莫姆，发现它需要太阳或月亮的光芒才能发挥出全部潜力。",
+        "If you defeat enough Mimikyu, you might find one with a busted costume roaming around.": "如果你击败足够多的谜拟Q，也许会遇到一只伪装破破烂烂、在外游荡的。",
+        "It seems like this Dungeon's Genesect is choosing its Drive based on the Moon Cycle!": "看来这座地下城里的盖诺赛克特会根据月相来选择它的卡带！",
+        "Meanwhile the high-speed form races to different Dungeons all across Unova.": "与此同时，高速形态会在合众各地的不同地下城之间快速移动。",
+        "Mimikyu really cares about it's costume.": "谜拟Q非常在意它的伪装。",
+        "People say they have truly mystical powers, but that they require Gems of different types to use. Also, using more Flutes at the same time costs more Gems to use.": "听说这些笛子拥有神秘的力量，但需要消耗不同属性的宝石才能使用。另外，同时启用的笛子越多，消耗的宝石也会越多。",
+        "The Flute Trader in Fallarbor Town has been paying me to go collect soot to make Flutes, but I'm sick of it.": "秋叶镇的笛子商人一直付钱让我去收集煤灰来制作笛子，但我受够了。",
+        "The costume often gets busted on battles. It will then spend all night patching it. Poor guy...": "它的伪装经常在战斗中被弄破，然后它会整晚修补。可怜的家伙……",
+        "When exposed to the light of the sun and leveling up, it will transform into Solgaleo. And it will turn into Lunala with the light of the moon.": "在太阳的光芒下升级，它会进化成索尔迦雷欧；在月亮的光芒下升级，则会进化成露奈雅拉。"
     }
 }
