@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.28
+// @version      0.10.29
 // @description  采用内核汉化形式，目前汉化范围：所有任务线、NPC、成就、地区、城镇、道路、道馆
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
@@ -21,19 +21,125 @@
 // @connect      cdn.jsdelivr.net
 // @connect      raw.githubusercontent.com
 // ==/UserScript==
-/* global TownList, QuestLine:true, Notifier, MultipleQuestsQuest, App, NPC, NPCController, GameController, ko */
+/* global TownList, QuestLine:true, Notifier, MultipleQuestsQuest, App, NPC, NPCController, GameController, ko, Achievement:true, AchievementHandler, AchievementTracker, GameConstants, Routes, SubRegions, GymList, Gym, $ */
 
-//储存汉化文本
-const Translation = {};
-const TranslationHelper = { Translation, exporting: false };
-const CoreModule = window.PokeClickerHelper ?? window.PokeClickerHelperPlus;
-(CoreModule ?? window).TranslationHelper = TranslationHelper;
-window.TranslationHelper = TranslationHelper;
-TranslationHelper.config = {
-    CDN: CoreModule?.get("TranslationHelperCDN", "jsDelivr", true) ?? "jsDelivr",
-    UpdateDelay: CoreModule?.get("TranslationHelperUpdateDelay", 30, true) ?? 30,
-    Timeout: CoreModule?.get("TranslationHelperTimeout", 5000, true) ?? 5000,
-};
+;(async () => {
+    const SCRIPT_TITLE = "宝可梦点击脚本";
+    const LOG_PREFIX = "PokeClickerHelper-Translation";
+    const STORAGE_PREFIX = "PokeClickerHelper-Translation";
+
+    const resources = ["QuestLine", "Town", "NPC", "Achievement", "Regions", "Route", "Gym"];
+    const failed = [];
+
+    const storageKey = (resource) => `${STORAGE_PREFIX}-${resource}`;
+    const storageLastModifiedKey = (resource) => `${STORAGE_PREFIX}-${resource}-lastModified`;
+
+    function readCache(resource) {
+        const cache = localStorage.getItem(storageKey(resource));
+        if (!cache) {
+            return null;
+        }
+        try {
+            return JSON.parse(cache);
+        } catch (error) {
+            console.warn(LOG_PREFIX, "缓存解析失败，已清空", resource, error);
+            localStorage.removeItem(storageKey(resource));
+            localStorage.removeItem(storageLastModifiedKey(resource));
+            return null;
+        }
+    }
+
+    function writeCache(resource, json) {
+        localStorage.setItem(storageKey(resource), JSON.stringify(json));
+        localStorage.setItem(storageLastModifiedKey(resource), String(Date.now()));
+    }
+
+    function removeCache(resource) {
+        localStorage.removeItem(storageKey(resource));
+        localStorage.removeItem(storageLastModifiedKey(resource));
+    }
+
+    function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async function waitFor(predicate, { timeoutMs = 30000, intervalMs = 200, name = "条件" } = {}) {
+        const start = Date.now();
+        while (Date.now() - start < timeoutMs) {
+            try {
+                if (predicate()) {
+                    return;
+                }
+            } catch {
+                // ignore
+            }
+            await sleep(intervalMs);
+        }
+        throw new Error(`等待超时: ${name}`);
+    }
+
+    async function waitForGameReady() {
+        await waitFor(
+            () =>
+                typeof Notifier !== "undefined" &&
+                typeof Notifier.notify === "function" &&
+                typeof $ === "function" &&
+                typeof ko !== "undefined" &&
+                typeof TownList !== "undefined" &&
+                typeof QuestLine !== "undefined" &&
+                typeof NPC !== "undefined" &&
+                typeof NPCController !== "undefined" &&
+                typeof GameController !== "undefined" &&
+                typeof MultipleQuestsQuest !== "undefined" &&
+                typeof Achievement !== "undefined" &&
+                typeof AchievementHandler !== "undefined" &&
+                typeof AchievementTracker !== "undefined" &&
+                typeof GameConstants !== "undefined" &&
+                typeof Routes !== "undefined" &&
+                typeof SubRegions !== "undefined" &&
+                typeof GymList !== "undefined" &&
+                typeof Gym !== "undefined",
+            { name: "PokeClicker 关键对象" }
+        );
+    }
+
+    async function fetchWithTimeout(url, timeoutMs) {
+        const timeout = +timeoutMs > 0 ? +timeoutMs : 10000;
+        const hasAbortSignalTimeout = typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function";
+        const controller =
+            !hasAbortSignalTimeout && typeof AbortController !== "undefined" ? new AbortController() : undefined;
+        const signal = hasAbortSignalTimeout ? AbortSignal.timeout(timeout) : controller?.signal;
+
+        let timerId;
+        if (controller && timeout > 0) {
+            timerId = setTimeout(() => controller.abort(), timeout);
+        }
+        try {
+            return await fetch(url, {
+                cache: "no-store",
+                signal,
+            });
+        } finally {
+            if (timerId) {
+                clearTimeout(timerId);
+            }
+        }
+    }
+
+    //储存汉化文本
+    const Translation = {};
+    const TranslationHelper = { Translation, exporting: false };
+
+    const getCoreModule = () => window.PokeClickerHelper ?? window.PokeClickerHelperPlus;
+    let CoreModule = getCoreModule();
+
+    (CoreModule ?? window).TranslationHelper = TranslationHelper;
+    window.TranslationHelper = TranslationHelper;
+    TranslationHelper.config = {
+        CDN: CoreModule?.get("TranslationHelperCDN", "jsDelivr", true) ?? "jsDelivr",
+        UpdateDelay: CoreModule?.get("TranslationHelperUpdateDelay", 30, true) ?? 30,
+        Timeout: CoreModule?.get("TranslationHelperTimeout", 5000, true) ?? 5000,
+    };
 
 // 引用外部资源
 // CDN-jsDelivr: https://cdn.jsdelivr.net
@@ -43,58 +149,85 @@ const CDN = {
     jsDelivr: "https://cdn.jsdelivr.net/gh/mianfeipiao123/poke-clicker-auto@main/json/",
     GitHub: "https://raw.githubusercontent.com/mianfeipiao123/poke-clicker-auto/main/json/",
 };
-const resources = ["QuestLine", "Town", "NPC", "Achievement", "Regions", "Route", "Gym"];
-const now = Date.now();
-const failed = [];
 
-Notifier.notify({
-    title: "宝可梦点击脚本",
-    message: `汉化正在加载中\n此时加载存档可能导致游戏错误\n若超过1分钟此提示仍未消失，则脚本可能运行出错`,
-    timeout: 600000,
-});
+    const notifierReadyPromise = waitFor(
+        () => typeof Notifier !== "undefined" && typeof Notifier.notify === "function",
+        { name: "Notifier" }
+    );
+    notifierReadyPromise
+        .then(() => {
+            Notifier.notify({
+                title: SCRIPT_TITLE,
+                message: `汉化正在加载中\n此时加载存档可能导致游戏错误\n若超过1分钟此提示仍未消失，则脚本可能运行出错`,
+                timeout: 600000,
+            });
+        })
+        .catch(() => {
+            // ignore
+        });
 
-for (const resource of resources) {
-    Translation[resource] = await FetchResource(resource).catch(() => {
-        const cache = localStorage.getItem(`PokeClickerHelper-Translation-${resource}`);
-        if (cache) {
-            console.log("PokeClickerHelper-Translation", "fallback获取json", resource);
-            return JSON.parse(cache);
-        } else {
-            console.log("PokeClickerHelper-Translation", "all failed获取json", resource);
-            failed.push(resource);
-            return {};
+    async function FetchResource(resource, force = false) {
+        const now = Date.now();
+        const past = +(localStorage.getItem(storageLastModifiedKey(resource)) ?? 0);
+        const updateDelayDays = Number(TranslationHelper.config.UpdateDelay);
+        if (
+            !force &&
+            (updateDelayDays < 0 || now - past <= 86400 * 1000 * (Number.isFinite(updateDelayDays) ? updateDelayDays : 30))
+        ) {
+            const cache = readCache(resource);
+            if (cache) {
+                console.log(LOG_PREFIX, "从存储获取json", resource);
+                return cache;
+            }
         }
-    });
-}
 
-async function FetchResource(resource, force = false) {
-    const past = +(localStorage.getItem(`PokeClickerHelper-Translation-${resource}-lastModified`) ?? 0);
-    if (
-        !force &&
-        (TranslationHelper.config.UpdateDelay < 0 || now - past <= 86400 * 1000 * TranslationHelper.config.UpdateDelay)
-    ) {
-        const cache = localStorage.getItem(`PokeClickerHelper-Translation-${resource}`);
-        if (cache) {
-            console.log("PokeClickerHelper-Translation", "从存储获取json", resource);
-            return JSON.parse(cache);
+        const selected = Object.prototype.hasOwnProperty.call(CDN, TranslationHelper.config.CDN)
+            ? TranslationHelper.config.CDN
+            : "jsDelivr";
+        const cdnOrder = [selected, ...Object.keys(CDN).filter((k) => k !== selected)];
+        const errors = [];
+
+        for (const cdn of cdnOrder) {
+            const url = `${CDN[cdn]}${resource}.json`;
+            try {
+                const response = await fetchWithTimeout(url, TranslationHelper.config.Timeout);
+                if (response.status !== 200) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const json = await response.json();
+                console.log(LOG_PREFIX, "从CDN获取json", resource, cdn);
+                writeCache(resource, json);
+                return json;
+            } catch (error) {
+                errors.push({ cdn, url, error });
+                console.warn(LOG_PREFIX, "CDN获取json失败", resource, cdn, error);
+            }
         }
+
+        const error = new Error(`获取${resource}.json失败`);
+        error.errors = errors;
+        throw error;
     }
-    const url = `${CDN[TranslationHelper.config.CDN]}${resource}.json`;
-    const response = await fetch(url, {
-        cache: "no-store",
-        // 超时中断
-        signal: AbortSignal.timeout(+TranslationHelper.config.Timeout || 10000),
-    });
-    if (response.status == 200) {
-        const json = await response.json();
-        console.log("PokeClickerHelper-Translation", "从CDN获取json", resource);
-        localStorage.setItem(`PokeClickerHelper-Translation-${resource}`, JSON.stringify(json));
-        localStorage.setItem(`PokeClickerHelper-Translation-${resource}-lastModified`, now);
-        return json;
-    } else {
-        throw new Error();
+
+    async function loadAllTranslations() {
+        await Promise.all(
+            resources.map(async (resource) => {
+                Translation[resource] = await FetchResource(resource).catch((error) => {
+                    const cache = readCache(resource);
+                    if (cache) {
+                        console.warn(LOG_PREFIX, "fallback获取json", resource, error);
+                        return cache;
+                    }
+                    console.warn(LOG_PREFIX, "all failed获取json", resource, error);
+                    failed.push(resource);
+                    return {};
+                });
+            })
+        );
     }
-}
+
+    const translationLoadPromise = loadAllTranslations();
+    await Promise.all([translationLoadPromise, waitForGameReady()]);
 
 Translation.NPCName = Translation.NPC.NPCName ?? {};
 Translation.NPCDialog = Translation.NPC.NPCDialog ?? {};
@@ -356,11 +489,11 @@ Object.assign(Translation.Region, { "Sevii Islands": "七之岛" });
 
 $("[href='#mapBody'] > span").attr(
     "data-bind",
-    "text: `城镇地图 (${TranslationHelper.Translation.RegionFull[GameConstants.camelCaseToString(GameConstants.Region[player.region])]})`"
+    "text: `城镇地图 (${TranslationHelper.Translation.RegionFull[GameConstants.camelCaseToString(GameConstants.Region[player.region])] ?? GameConstants.camelCaseToString(GameConstants.Region[player.region])})`"
 );
 $("#subregion-travel-buttons > button.btn.btn-sm.btn-primary").attr(
     "data-bind",
-    "click: () => SubRegions.openModal(), text: `副区域旅行 (${TranslationHelper.Translation.SubRegion[player.subregionObject()?.name]})`"
+    "click: () => SubRegions.openModal(), text: `副区域旅行 (${TranslationHelper.Translation.SubRegion[player.subregionObject()?.name] ?? player.subregionObject()?.name ?? ''})`"
 );
 
 // 汉化道路
@@ -566,7 +699,7 @@ TranslationHelper.ImportTranslation = async function (files) {
         const type = name.replace(/\.json$/, "");
         if (!resources.includes(type)) {
             Notifier.notify({
-                title: "宝可梦点击脚本",
+                title: SCRIPT_TITLE,
                 message: `导入本地汉化json失败\n不支持的文件名：${name}`,
                 timeout: 6000000,
             });
@@ -577,12 +710,24 @@ TranslationHelper.ImportTranslation = async function (files) {
             const fr = new FileReader();
             fr.readAsText(file);
             fr.addEventListener("loadend", function () {
-                const result = JSON.parse(this.result);
-                localStorage.setItem(`PokeClickerHelper-Translation-${type}`, JSON.stringify(result));
-                localStorage.setItem(`PokeClickerHelper-Translation-${type}-lastModified`, now);
-                console.log("PokeClickerHelper-Translation", "本地导入json", type);
+                let result;
+                try {
+                    result = JSON.parse(this.result);
+                } catch (error) {
+                    Notifier.notify({
+                        title: SCRIPT_TITLE,
+                        message: `导入本地汉化json失败\nJSON解析错误：${name}`,
+                        timeout: 6000000,
+                    });
+                    console.warn(LOG_PREFIX, "本地导入json解析失败", type, error);
+                    resolve();
+                    return;
+                }
+
+                writeCache(type, result);
+                console.log(LOG_PREFIX, "本地导入json", type);
                 Notifier.notify({
-                    title: "宝可梦点击脚本",
+                    title: SCRIPT_TITLE,
                     message: `导入本地汉化json成功\n刷新游戏后生效：${name}`,
                     type: 1,
                     timeout: 6000000,
@@ -594,7 +739,9 @@ TranslationHelper.ImportTranslation = async function (files) {
 };
 
 // UI (需要PokeClickerHelper)
+CoreModule = CoreModule ?? getCoreModule();
 if (CoreModule) {
+    CoreModule.TranslationHelper = TranslationHelper;
     const prefix = CoreModule.UIContainerID[0].replace("#", "").replace("Container", "") + "TranslationHelper";
 
     // 挂载汉化api供其他脚本使用
@@ -720,22 +867,19 @@ window.PCHImportAction = () => {
 };
 
 window.PCHForceRefreshTranslation = (refresh = true) => {
-    resources.forEach((resource) => {
-        localStorage.removeItem(`PokeClickerHelper-Translation-${resource}`);
-        localStorage.removeItem(`PokeClickerHelper-Translation-${resource}-lastModified`);
-    });
+    resources.forEach((resource) => removeCache(resource));
     refresh && location.reload();
 };
 
 if (failed.length == 0) {
     Notifier.notify({
-        title: "宝可梦点击脚本",
+        title: SCRIPT_TITLE,
         message: `汉化加载完毕\n可以正常加载存档\n\n<div class="d-flex" style="justify-content: space-around;"><button class="btn btn-block btn-info m-0 col-5" onclick="window.PCHForceRefreshTranslation()">清空汉化缓存</button><button class="btn btn-block btn-info m-0 col-5" onclick="window.PCHImportAction()">本地导入汉化</button></div>`,
         timeout: 15000,
     });
 } else {
     Notifier.notify({
-        title: "宝可梦点击脚本",
+        title: SCRIPT_TITLE,
         message: `请求汉化json失败，请检查网络链接或更新脚本\n无法完成汉化：${failed.join(
             " / "
         )}\n\n<div class="d-flex" style="justify-content: space-around;"><button class="btn btn-block btn-info m-0 col-5" onclick="window.PCHForceRefreshTranslation()">清空汉化缓存</button><button class="btn btn-block btn-info m-0 col-5" onclick="window.PCHImportAction()">本地导入汉化</button></div>`,
@@ -744,3 +888,4 @@ if (failed.length == 0) {
 }
 
 setTimeout(() => $('.toast:contains("汉化正在加载中") [data-dismiss="toast"]').trigger("click"), 1000);
+})().catch((error) => console.error("宝可梦点击脚本 初始化失败", error));
