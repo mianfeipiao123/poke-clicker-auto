@@ -818,29 +818,69 @@ function translateBadges() {
 
 // ========== 地下城翻译 ==========
 function translateDungeons() {
-    if (!Translation.Dungeon || typeof dungeonList === 'undefined') return;
-
     // 合并所有地区的地下城翻译
     const allDungeons = {};
-    Object.values(Translation.Dungeon).forEach(region => {
-        if (typeof region === 'object') {
-            Object.assign(allDungeons, region);
-        }
-    });
+    if (Translation.Dungeon) {
+        Object.values(Translation.Dungeon).forEach((region) => {
+            if (typeof region === 'object') {
+                Object.assign(allDungeons, region);
+            }
+        });
+    }
 
-    Object.values(dungeonList).forEach(dungeon => {
-        if (!dungeon || dungeon._translationApplied) return;
+    // 创建地下城显示名称获取函数（优先 Dungeon.json，其次 Town.json）
+    window.getDungeonDisplayName = (dungeonName) => {
+        if (TranslationHelper.toggleRaw) return dungeonName;
+        return allDungeons[dungeonName] || Translation.Town?.[dungeonName] || dungeonName;
+    };
 
-        const rawName = dungeon.name;
-        const translatedName = allDungeons[rawName];
+    // 为 dungeonList 补充可用于其他脚本/调试的 displayName（不修改 name，避免破坏游戏逻辑）
+    if (typeof dungeonList !== 'undefined') {
+        Object.values(dungeonList).forEach((dungeon) => {
+            if (!dungeon || dungeon._translationApplied) return;
 
-        if (translatedName) {
-            dungeon.displayName = translatedName;
+            const rawName = dungeon.name;
+            const translatedName = allDungeons[rawName] || Translation.Town?.[rawName];
+            if (translatedName) {
+                Object.defineProperty(dungeon, 'displayName', {
+                    get: () => (TranslationHelper.toggleRaw ? rawName : translatedName),
+                    configurable: true,
+                });
+            } else {
+                Object.defineProperty(dungeon, 'displayName', {
+                    get: () => rawName,
+                    configurable: true,
+                });
+            }
             dungeon._translationApplied = true;
-        } else {
-            dungeon.displayName = rawName;
-        }
-    });
+        });
+    }
+
+    // 修复UI中仍使用 dungeon.name 的绑定
+    waitFor(() => document.querySelector('knockout[data-bind="text: DungeonRunner.dungeon.name"]'), { timeoutMs: 30000, name: '地下城名称' })
+        .then(() => {
+            $('knockout[data-bind="text: DungeonRunner.dungeon.name"]').attr(
+                'data-bind',
+                'text: getDungeonDisplayName(DungeonRunner.dungeon.name)'
+            );
+            console.log('[翻译] 地下城名称DOM绑定已修改');
+        })
+        .catch((err) => {
+            console.warn('[翻译] 地下城名称DOM绑定修改失败', err);
+        });
+
+    // 修复地下城界面的通关次数文字（Clears）
+    waitFor(() => document.querySelector('knockout[data-bind*="dungeonsCleared[GameConstants.getDungeonIndex(DungeonRunner.dungeon.name)]"]'), { timeoutMs: 30000, name: '地下城通关次数' })
+        .then(() => {
+            $('knockout[data-bind*="dungeonsCleared[GameConstants.getDungeonIndex(DungeonRunner.dungeon.name)]"]').attr(
+                'data-bind',
+                "text: `${App.game.statistics.dungeonsCleared[GameConstants.getDungeonIndex(DungeonRunner.dungeon.name)]().toLocaleString('en-US')} ${TranslationHelper.toggleRaw ? 'Clears' : '次通关'}`"
+            );
+            console.log('[翻译] 地下城通关次数DOM绑定已修改');
+        })
+        .catch((err) => {
+            console.warn('[翻译] 地下城通关次数DOM绑定修改失败', err);
+        });
 }
 
 // ========== 地下物品翻译 ==========
