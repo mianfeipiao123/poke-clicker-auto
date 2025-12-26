@@ -1,22 +1,22 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.31
-// @description  采用内核汉化形式，目前汉化范围：所有任务线、NPC、成就、地区、城镇、道路、道馆
+// @version      0.10.32
+// @description  内核汉化 + 界面文本汉化（修复镜像站缺失 locales），范围：任务线/NPC/成就/地区/城镇/道路/道馆/部分界面
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
 // @updateURL    https://raw.githubusercontent.com/mianfeipiao123/poke-clicker-auto/main/%E5%AE%9D%E5%8F%AF%E6%A2%A6%E7%82%B9%E5%87%BB%E8%84%9A%E6%9C%AC.user.js
 // @downloadURL  https://raw.githubusercontent.com/mianfeipiao123/poke-clicker-auto/main/%E5%AE%9D%E5%8F%AF%E6%A2%A6%E7%82%B9%E5%87%BB%E8%84%9A%E6%9C%AC.user.js
-// @match        http://localhost:3000/
-// @match        https://www.pokeclicker.com
-// @match        https://g8hh.github.io/pokeclicker/
-// @match        https://pokeclicker.g8hh.com
-// @match        https://pokeclicker.g8hh.com.cn/
-// @match        https://yx.g8hh.com/pokeclicker/
-// @match        https://dreamnya.github.io/pokeclicker/
+// @match        http://localhost:3000/*
+// @match        https://www.pokeclicker.com/*
+// @match        https://g8hh.github.io/pokeclicker/*
+// @match        https://pokeclicker.g8hh.com/*
+// @match        https://pokeclicker.g8hh.com.cn/*
+// @match        https://yx.g8hh.com/pokeclicker/*
+// @match        https://dreamnya.github.io/pokeclicker/*
 // @icon         https://scriptcat.org/api/v2/resource/image/Y3VU6C1i3QnlBewG
 // @grant        none
-// @run-at       document-end
+// @run-at       document-start
 // @license      MIT
 // @connect      cdn.jsdelivr.net
 // @connect      raw.githubusercontent.com
@@ -27,6 +27,127 @@
     const SCRIPT_TITLE = "宝可梦点击脚本";
     const LOG_PREFIX = "PokeClickerHelper-Translation";
     const STORAGE_PREFIX = "PokeClickerHelper-Translation";
+
+    // 修复镜像站缺失/过期的界面翻译：将 i18next 的 locales 请求重定向到可用来源
+    const OFFICIAL_TRANSLATIONS_BASE = "https://www.pokeclicker.com";
+    const LOCALES_PATH_RE = /\/locales\/([^/]+)\/([^/]+\.json)$/i;
+    const localesPatchState = {
+        enabled: false,
+        baseUrl: OFFICIAL_TRANSLATIONS_BASE,
+        rewrites: 0,
+        lastRewritten: null,
+    };
+
+    function normalizeTranslationsBaseUrl(raw) {
+        if (raw == null) {
+            return OFFICIAL_TRANSLATIONS_BASE;
+        }
+        let value = String(raw).trim();
+        if (!value) {
+            return OFFICIAL_TRANSLATIONS_BASE;
+        }
+        if (value.startsWith("github:")) {
+            value = `https://raw.githubusercontent.com/${value.slice("github:".length)}`;
+        }
+        return value.replace(/\/+$/, "");
+    }
+
+    function computeLocalesBaseUrl() {
+        const override = new URLSearchParams(window.location.search).get("translations");
+        return normalizeTranslationsBaseUrl(override ?? OFFICIAL_TRANSLATIONS_BASE);
+    }
+
+    function shouldForceLocalesBaseUrl() {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has("translations")) {
+            return true;
+        }
+        const host = window.location.hostname;
+        const isLocal = host === "localhost" || host === "127.0.0.1";
+        const isOfficial = host === "www.pokeclicker.com";
+        return !isLocal && !isOfficial;
+    }
+
+    function rewriteLocalesUrl(inputUrl) {
+        if (!localesPatchState.enabled) {
+            return null;
+        }
+        if (typeof inputUrl !== "string" || !inputUrl) {
+            return null;
+        }
+        try {
+            const url = new URL(inputUrl, window.location.href);
+            const match = url.pathname.match(LOCALES_PATH_RE);
+            if (!match) {
+                return null;
+            }
+            const lng = match[1];
+            const file = match[2];
+            const rewritten = `${localesPatchState.baseUrl}/locales/${lng}/${file}`;
+            if (rewritten === url.href) {
+                return null;
+            }
+            return rewritten;
+        } catch {
+            const match = inputUrl.match(/\/locales\/([^/]+)\/([^/?#]+\.json)(?:[?#]|$)/i);
+            if (!match) {
+                return null;
+            }
+            return `${localesPatchState.baseUrl}/locales/${match[1]}/${match[2]}`;
+        }
+    }
+
+    function installLocalesRequestRewrite() {
+        localesPatchState.baseUrl = computeLocalesBaseUrl();
+        localesPatchState.enabled = shouldForceLocalesBaseUrl();
+        if (!localesPatchState.enabled) {
+            return;
+        }
+
+        const flag = "__PCH_LOCALES_PATCHED__";
+        if (window[flag]) {
+            return;
+        }
+        Object.defineProperty(window, flag, { value: true });
+
+        // fetch
+        if (typeof window.fetch === "function") {
+            const realFetch = window.fetch.bind(window);
+            const wrappedFetch = async (input, init) => {
+                const url = typeof input === "string" ? input : input?.url;
+                const rewritten = rewriteLocalesUrl(url);
+                if (rewritten) {
+                    localesPatchState.rewrites += 1;
+                    localesPatchState.lastRewritten = { from: url, to: rewritten };
+                    if (input instanceof Request) {
+                        return realFetch(new Request(rewritten, input), init);
+                    }
+                    return realFetch(rewritten, init);
+                }
+                return realFetch(input, init);
+            };
+            wrappedFetch.__PCH_REAL_FETCH__ = realFetch;
+            window.fetch = wrappedFetch;
+        }
+
+        // XHR
+        if (typeof window.XMLHttpRequest !== "undefined" && XMLHttpRequest?.prototype?.open) {
+            const realOpen = XMLHttpRequest.prototype.open;
+            const wrappedOpen = function (method, url, async, user, password) {
+                const rewritten = rewriteLocalesUrl(url);
+                if (rewritten) {
+                    localesPatchState.rewrites += 1;
+                    localesPatchState.lastRewritten = { from: url, to: rewritten };
+                    return realOpen.call(this, method, rewritten, async, user, password);
+                }
+                return realOpen.call(this, method, url, async, user, password);
+            };
+            wrappedOpen.__PCH_REAL_OPEN__ = realOpen;
+            XMLHttpRequest.prototype.open = wrappedOpen;
+        }
+    }
+
+    installLocalesRequestRewrite();
 
     const requiredResources = ["QuestLine", "Town", "NPC", "Achievement", "Regions", "Route", "Gym"];
     const optionalResources = ["UI"];
@@ -131,6 +252,7 @@
     //储存汉化文本
     const Translation = {};
     const TranslationHelper = { Translation, exporting: false };
+    TranslationHelper.Locales = localesPatchState;
 
     const getCoreModule = () => window.PokeClickerHelper ?? window.PokeClickerHelperPlus;
     let CoreModule = getCoreModule();
@@ -350,6 +472,172 @@ const CDN = {
                 viewModel,
                 bindingContext
             );
+        };
+    }
+
+    // 继续覆盖非 KO text/attr 绑定的界面文本（静态 DOM/第三方 tooltip/toast 等）
+    (function installDomTranslator() {
+        const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA"]);
+        const ATTRS = ["title", "placeholder", "aria-label"];
+        const seenText = new WeakMap();
+
+        const shouldSkipTextNode = (node) => {
+            const parent = node.parentElement;
+            if (!parent) {
+                return true;
+            }
+            if (SKIP_TAGS.has(parent.tagName)) {
+                return true;
+            }
+            if (parent.isContentEditable || parent.closest?.("[contenteditable=true]")) {
+                return true;
+            }
+            return false;
+        };
+
+        const processTextNode = (node) => {
+            if (!node || node.nodeType !== Node.TEXT_NODE) {
+                return;
+            }
+            if (shouldSkipTextNode(node)) {
+                return;
+            }
+            const raw = node.nodeValue;
+            if (typeof raw !== "string" || !raw) {
+                return;
+            }
+            if (!/[A-Za-z]/.test(raw) || raw.length > 240) {
+                return;
+            }
+            if (seenText.get(node) === raw) {
+                return;
+            }
+            seenText.set(node, raw);
+            const translated = translateUIText(raw);
+            if (translated !== raw) {
+                seenText.set(node, translated);
+                node.nodeValue = translated;
+            }
+        };
+
+        const processElementAttrs = (el) => {
+            if (!el || el.nodeType !== Node.ELEMENT_NODE) {
+                return;
+            }
+            for (const attr of ATTRS) {
+                const raw = el.getAttribute(attr);
+                if (raw && /[A-Za-z]/.test(raw) && raw.length <= 240) {
+                    const translated = translateUIText(raw);
+                    if (translated !== raw) {
+                        el.setAttribute(attr, translated);
+                    }
+                }
+            }
+        };
+
+        const processElementSubtree = (rootEl) => {
+            if (!rootEl || rootEl.nodeType !== Node.ELEMENT_NODE) {
+                return;
+            }
+            processElementAttrs(rootEl);
+            if (rootEl.querySelectorAll) {
+                const selector = ATTRS.map((a) => `[${a}]`).join(",");
+                rootEl.querySelectorAll(selector).forEach(processElementAttrs);
+            }
+            const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT);
+            let node;
+            while ((node = walker.nextNode())) {
+                processTextNode(node);
+            }
+        };
+
+        const pending = new Set();
+        let scheduled = false;
+        const schedule = (node) => {
+            if (!node) {
+                return;
+            }
+            pending.add(node);
+            if (scheduled) {
+                return;
+            }
+            scheduled = true;
+            setTimeout(() => {
+                scheduled = false;
+                const batch = Array.from(pending);
+                pending.clear();
+                batch.forEach((n) => {
+                    if (n.nodeType === Node.TEXT_NODE) {
+                        processTextNode(n);
+                    } else if (n.nodeType === Node.ELEMENT_NODE) {
+                        processElementSubtree(n);
+                    }
+                });
+            }, 0);
+        };
+
+        const observer = new MutationObserver((mutations) => {
+            for (const m of mutations) {
+                if (m.type === "characterData") {
+                    schedule(m.target);
+                } else if (m.type === "attributes") {
+                    schedule(m.target);
+                } else if (m.type === "childList") {
+                    m.addedNodes?.forEach(schedule);
+                }
+            }
+        });
+
+        if (document.body) {
+            processElementSubtree(document.body);
+            observer.observe(document.body, {
+                subtree: true,
+                childList: true,
+                characterData: true,
+                attributes: true,
+                attributeFilter: ATTRS,
+            });
+        } else {
+            window.addEventListener(
+                "DOMContentLoaded",
+                () => {
+                    if (!document.body) {
+                        return;
+                    }
+                    processElementSubtree(document.body);
+                    observer.observe(document.body, {
+                        subtree: true,
+                        childList: true,
+                        characterData: true,
+                        attributes: true,
+                        attributeFilter: ATTRS,
+                    });
+                },
+                { once: true }
+            );
+        }
+    })();
+
+    // 通用通知文本汉化（仅处理纯文本 message）
+    if (typeof Notifier?.notify === "function" && !Notifier.notify.__PCH_UI_TRANSLATED__) {
+        Notifier.notify.__PCH_UI_TRANSLATED__ = true;
+        const realNotify = Notifier.notify;
+        Notifier.notify = function (options) {
+            if (!options || typeof options !== "object") {
+                return realNotify.call(this, options);
+            }
+            try {
+                const out = { ...options };
+                if (typeof out.title === "string") {
+                    out.title = translateUIText(out.title);
+                }
+                if (typeof out.message === "string" && !/[<>]/.test(out.message)) {
+                    out.message = translateUIText(out.message);
+                }
+                return realNotify.call(this, out);
+            } catch {
+                return realNotify.call(this, options);
+            }
         };
     }
 
