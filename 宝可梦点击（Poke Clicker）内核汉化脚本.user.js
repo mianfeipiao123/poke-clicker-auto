@@ -1,9 +1,13 @@
 // ==UserScript==
 // @name         宝可梦点击（Poke Clicker）内核汉化脚本
-// @namespace    PokeClickerHelper
-// @version      0.10.25-b
+// @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
+// @version      0.10.26
 // @description  采用内核汉化形式，目前汉化范围：所有任务线、NPC、成就、地区、城镇、道路、道馆
-// @author       DreamNya, ICEYe, iktsuarpok, 我是谁？, 顶不住了, 银☆星, TerVoid
+// @author       DreamNya, ICEYe, iktsuarpok, 我是谁？, 顶不住了, 银☆星, TerVoid, mianfeipiao123
+// @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
+// @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
+// @updateURL    https://raw.githubusercontent.com/mianfeipiao123/poke-clicker-auto/main/%E5%AE%9D%E5%8F%AF%E6%A2%A6%E7%82%B9%E5%87%BB%EF%BC%88Poke%20Clicker%EF%BC%89%E5%86%85%E6%A0%B8%E6%B1%89%E5%8C%96%E8%84%9A%E6%9C%AC.user.js
+// @downloadURL  https://raw.githubusercontent.com/mianfeipiao123/poke-clicker-auto/main/%E5%AE%9D%E5%8F%AF%E6%A2%A6%E7%82%B9%E5%87%BB%EF%BC%88Poke%20Clicker%EF%BC%89%E5%86%85%E6%A0%B8%E6%B1%89%E5%8C%96%E8%84%9A%E6%9C%AC.user.js
 // @match        http://localhost:3000/
 // @match        https://www.pokeclicker.com
 // @match        https://g8hh.github.io/pokeclicker/
@@ -35,10 +39,10 @@ TranslationHelper.config = {
 // 引用外部资源
 // CDN-jsDelivr: https://cdn.jsdelivr.net
 // CDN-GitHub: https://raw.githubusercontent.com
-// GIT: https://github.com/DreamNya/PokeClickerHelper-Translation
+// GIT: https://github.com/mianfeipiao123/poke-clicker-auto
 const CDN = {
-    jsDelivr: "https://cdn.jsdelivr.net/gh/DreamNya/PokeClickerHelper-Translation@main/json/",
-    GitHub: "https://raw.githubusercontent.com/DreamNya/PokeClickerHelper-Translation/main/json/",
+    jsDelivr: "https://cdn.jsdelivr.net/gh/mianfeipiao123/poke-clicker-auto@main/json/",
+    GitHub: "https://raw.githubusercontent.com/mianfeipiao123/poke-clicker-auto/main/json/",
 };
 const resources = ["QuestLine", "Town", "NPC", "Achievement", "Regions", "Route", "Gym"];
 const now = Date.now();
