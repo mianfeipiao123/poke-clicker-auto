@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.30
+// @version      0.10.31
 // @description  采用内核汉化形式，目前汉化范围：所有任务线、NPC、成就、地区、城镇、道路、道馆
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
@@ -261,6 +261,20 @@ const CDN = {
                 if (reg.test(text)) {
                     return text.replace(reg, value);
                 }
+            }
+
+            // 复用现有汉化资源，让更多位置自动生效
+            const fallback =
+                Translation.Town?.[text] ??
+                Translation.Gym?.[text] ??
+                Translation.Route?.[text] ??
+                Translation.QuestLine?.[text]?.name ??
+                Translation.NPC?.NPCName?.[text] ??
+                Translation.Achievement?.name?.[text] ??
+                Translation.Regions?.Region?.[text] ??
+                Translation.Regions?.SubRegion?.[text];
+            if (fallback != null && fallback !== "") {
+                return fallback;
             }
             return null;
         };
