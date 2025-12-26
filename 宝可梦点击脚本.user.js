@@ -150,7 +150,7 @@
     installLocalesRequestRewrite();
 
     const requiredResources = ["QuestLine", "Town", "NPC", "Achievement", "Regions", "Route", "Gym"];
-    const optionalResources = ["UI", "Items", "Berry", "Badge", "Dungeon", "Underground"];
+    const optionalResources = ["UI", "Items", "Berry", "Badge", "Dungeon", "Underground", "GameEnums", "Stone", "Farm", "SpecialEvent", "KeyItem"];
     const resources = [...requiredResources, ...optionalResources];
     const failed = [];
 
@@ -826,6 +826,93 @@ translateBerries();
 translateBadges();
 translateDungeons();
 translateUndergroundItems();
+
+// ========== 游戏枚举翻译 ==========
+function translateGameEnums() {
+    if (!Translation.GameEnums) return;
+
+    // 宝可梦属性类型翻译
+    window.getPokemonTypeDisplayName = (type) => {
+        const name = typeof type === 'number' ? PokemonType[type] : type;
+        return TranslationHelper.toggleRaw ? name : (Translation.GameEnums.pokemonType?.[name] || name);
+    };
+
+    // 天气类型翻译
+    window.getWeatherDisplayName = (weather) => {
+        const name = typeof weather === 'number' ? WeatherType[weather] : weather;
+        return TranslationHelper.toggleRaw ? name : (Translation.GameEnums.weatherType?.[name] || name);
+    };
+
+    // 货币类型翻译
+    window.getCurrencyDisplayName = (currency) => {
+        const name = typeof currency === 'number' ? GameConstants.Currency[currency] : currency;
+        return TranslationHelper.toggleRaw ? name : (Translation.GameEnums.currency?.[name] || name);
+    };
+}
+
+// ========== 进化石翻译 ==========
+function translateStones() {
+    if (!Translation.Stone) return;
+
+    window.getStoneDisplayName = (stone) => {
+        if (TranslationHelper.toggleRaw) return stone;
+        return Translation.Stone.evolutionStone?.[stone]
+            || Translation.Stone.megaStone?.[stone]
+            || Translation.Stone.zCrystal?.[stone]
+            || stone;
+    };
+}
+
+// ========== 农场翻译 ==========
+function translateFarm() {
+    if (!Translation.Farm) return;
+
+    window.getFarmToolDisplayName = (tool) => {
+        const name = typeof tool === 'number' ? FarmingTool[tool] : tool;
+        return TranslationHelper.toggleRaw ? name : (Translation.Farm.farmingTool?.[name] || name);
+    };
+
+    window.getPlotStageDisplayName = (stage) => {
+        const name = typeof stage === 'number' ? PlotStage[stage] : stage;
+        return TranslationHelper.toggleRaw ? name : (Translation.Farm.plotStage?.[name] || name);
+    };
+
+    window.getAuraDisplayName = (aura) => {
+        const name = typeof aura === 'number' ? AuraType[aura] : aura;
+        return TranslationHelper.toggleRaw ? name : (Translation.Farm.auraType?.[name] || name);
+    };
+}
+
+// ========== 特殊事件翻译 ==========
+function translateSpecialEvents() {
+    if (!Translation.SpecialEvent?.events) return;
+
+    window.getSpecialEventDisplayName = (eventName) => {
+        return TranslationHelper.toggleRaw ? eventName : (Translation.SpecialEvent.events[eventName] || eventName);
+    };
+}
+
+// ========== 关键物品翻译 ==========
+function translateKeyItems() {
+    if (!Translation.KeyItem) return;
+
+    window.getKeyItemDisplayName = (item) => {
+        const name = typeof item === 'number' ? KeyItemType[item] : item;
+        return TranslationHelper.toggleRaw ? name : (Translation.KeyItem.keyItem?.[name] || name);
+    };
+
+    window.getOakItemDisplayName = (item) => {
+        const name = typeof item === 'number' ? OakItemType[item] : item;
+        return TranslationHelper.toggleRaw ? name : (Translation.KeyItem.oakItem?.[name] || name);
+    };
+}
+
+// 执行新增翻译
+translateGameEnums();
+translateStones();
+translateFarm();
+translateSpecialEvents();
+translateKeyItems();
 
 // ========== UI界面翻译 ==========
 // UI翻译数据从CDN加载（Translation.UI）
