@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.29
+// @version      0.10.30
 // @description  采用内核汉化形式，目前汉化范围：所有任务线、NPC、成就、地区、城镇、道路、道馆
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
@@ -28,7 +28,7 @@
     const LOG_PREFIX = "PokeClickerHelper-Translation";
     const STORAGE_PREFIX = "PokeClickerHelper-Translation";
 
-    const resources = ["QuestLine", "Town", "NPC", "Achievement", "Regions", "Route", "Gym"];
+    const resources = ["QuestLine", "Town", "NPC", "Achievement", "Regions", "Route", "Gym", "UI"];
     const failed = [];
 
     const storageKey = (resource) => `${STORAGE_PREFIX}-${resource}`;
@@ -228,6 +228,112 @@ const CDN = {
 
     const translationLoadPromise = loadAllTranslations();
     await Promise.all([translationLoadPromise, waitForGameReady()]);
+
+    // 通用UI文本汉化（可选：json/UI.json）
+    Translation.UI = Translation.UI ?? {};
+    const UI_TEXT = Translation.UI.text ?? Translation.UI;
+    const UI_TEXT_REG = Translation.UI.textReg ?? {};
+    const UI_TEXT_REGS = Object.entries(UI_TEXT_REG).map(([reg, value]) => [new RegExp(reg), value]);
+    const uiMissing = new Set();
+    TranslationHelper.UIMissing = uiMissing;
+
+    function translateUIText(rawText) {
+        if (TranslationHelper.exporting || TranslationHelper.toggleRaw) {
+            return rawText;
+        }
+        if (typeof rawText !== "string") {
+            return rawText;
+        }
+        if (!rawText) {
+            return rawText;
+        }
+
+        const tryLookup = (text) => {
+            const direct = UI_TEXT?.[text];
+            if (direct != null && direct !== "") {
+                return direct;
+            }
+            for (const [reg, value] of UI_TEXT_REGS) {
+                if (reg.test(text)) {
+                    return text.replace(reg, value);
+                }
+            }
+            return null;
+        };
+
+        const direct = tryLookup(rawText);
+        if (direct != null) {
+            return direct;
+        }
+        const trimmed = rawText.trim();
+        if (trimmed && trimmed !== rawText) {
+            const trimmedHit = tryLookup(trimmed);
+            if (trimmedHit != null) {
+                const start = rawText.indexOf(trimmed);
+                if (start >= 0) {
+                    return rawText.slice(0, start) + trimmedHit + rawText.slice(start + trimmed.length);
+                }
+                return trimmedHit;
+            }
+        }
+
+        // 收集缺失文本，便于扩充 json/UI.json（仅收集包含英文的短文本）
+        if (/[A-Za-z]/.test(trimmed) && trimmed.length >= 2 && trimmed.length <= 120) {
+            uiMissing.add(trimmed);
+        }
+        return rawText;
+    }
+
+    TranslationHelper.ExportTranslation = TranslationHelper.ExportTranslation ?? {};
+    TranslationHelper.ExportTranslation.UI = function () {
+        const keys = Array.from(uiMissing).sort((a, b) => a.localeCompare(b));
+        return Object.fromEntries(keys.map((k) => [k, UI_TEXT?.[k] ?? ""]));
+    };
+
+    // 优先拦截 Knockout 的 text/attr 绑定，覆盖更多界面文本（不改变游戏逻辑）
+    if (ko?.bindingHandlers?.text?.update && !ko.bindingHandlers.text.__PCH_UI_TRANSLATED__) {
+        ko.bindingHandlers.text.__PCH_UI_TRANSLATED__ = true;
+        const realTextUpdate = ko.bindingHandlers.text.update;
+        ko.bindingHandlers.text.update = function (element, valueAccessor, allBindings, viewModel, bindingContext) {
+            return realTextUpdate.call(
+                this,
+                element,
+                () => translateUIText(ko.utils.unwrapObservable(valueAccessor())),
+                allBindings,
+                viewModel,
+                bindingContext
+            );
+        };
+    }
+    if (ko?.bindingHandlers?.attr?.update && !ko.bindingHandlers.attr.__PCH_UI_TRANSLATED__) {
+        ko.bindingHandlers.attr.__PCH_UI_TRANSLATED__ = true;
+        const realAttrUpdate = ko.bindingHandlers.attr.update;
+        ko.bindingHandlers.attr.update = function (element, valueAccessor, allBindings, viewModel, bindingContext) {
+            return realAttrUpdate.call(
+                this,
+                element,
+                () => {
+                    const attrs = ko.utils.unwrapObservable(valueAccessor()) ?? {};
+                    if (!attrs || typeof attrs !== "object") {
+                        return attrs;
+                    }
+                    const out = Array.isArray(attrs) ? [] : {};
+                    for (const [key, value] of Object.entries(attrs)) {
+                        const raw = ko.utils.unwrapObservable(value);
+                        if (typeof raw === "string" && (key === "title" || key === "placeholder" || key === "aria-label")) {
+                            out[key] = translateUIText(raw);
+                        } else {
+                            out[key] = raw;
+                        }
+                    }
+                    return out;
+                },
+                allBindings,
+                viewModel,
+                bindingContext
+            );
+        };
+    }
 
 Translation.NPCName = Translation.NPC.NPCName ?? {};
 Translation.NPCDialog = Translation.NPC.NPCDialog ?? {};
@@ -584,7 +690,7 @@ Object.defineProperty(Gym.prototype, "imagePath", {
 });
 
 // 导出完整json方法
-TranslationHelper.ExportTranslation = {};
+TranslationHelper.ExportTranslation = TranslationHelper.ExportTranslation ?? {};
 TranslationHelper.ExportTranslation.QuestLine = function () {
     TranslationHelper.exporting = true;
     const json = App.game.quests.questLines().reduce((obj, questline) => {
