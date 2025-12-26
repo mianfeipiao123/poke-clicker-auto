@@ -150,7 +150,8 @@
     installLocalesRequestRewrite();
 
     const requiredResources = ["QuestLine", "Town", "NPC", "Achievement", "Regions", "Route", "Gym"];
-    const resources = requiredResources;
+    const optionalResources = ["UI"];
+    const resources = [...requiredResources, ...optionalResources];
     const failed = [];
 
     const storageKey = (resource) => `${STORAGE_PREFIX}-${resource}`;
@@ -708,6 +709,117 @@ Object.defineProperty(Gym.prototype, "imagePath", {
     },
 });
 
+// ========== UI界面翻译 ==========
+// 辅助函数：获取嵌套对象的值
+function getNestedValue(obj, path) {
+    if (!obj || !path) return undefined;
+    return path.split('.').reduce((current, key) => current?.[key], obj);
+}
+
+// 静态UI文本翻译
+function translateStaticUI() {
+    if (!Translation.UI) return;
+
+    // 主菜单按钮
+    const menuButton = document.querySelector('#startMenu .dropdown-toggle');
+    if (menuButton && Translation.UI.menu?.['Start Menu']) {
+        const textNode = Array.from(menuButton.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
+        if (textNode) {
+            textNode.textContent = Translation.UI.menu['Start Menu'] + '\n';
+        }
+    }
+
+    // 主菜单项
+    document.querySelectorAll('#startMenu .dropdown-item').forEach(el => {
+        const text = el.textContent.trim();
+        const translation = Translation.UI.menu?.[text];
+        if (translation) {
+            el.textContent = translation;
+        }
+    });
+
+    // 设置标签页
+    document.querySelectorAll('#settingsModal .nav-link').forEach(el => {
+        const text = el.textContent.trim();
+        const translation = Translation.UI.settings?.tabs?.[text];
+        if (translation) {
+            el.textContent = translation;
+        }
+    });
+
+    // 设置分组标题
+    document.querySelectorAll('#settingsModal thead th').forEach(el => {
+        const text = el.textContent.trim();
+        const translation = Translation.UI.settings?.sections?.[text];
+        if (translation) {
+            el.textContent = translation;
+        }
+    });
+}
+
+// 模态框翻译
+function translateModalContent(modal) {
+    if (!Translation.UI || !modal) return;
+
+    // 翻译标题
+    const title = modal.querySelector('.modal-title');
+    if (title) {
+        const text = title.textContent.trim();
+        const translation = Translation.UI.modals?.[text];
+        if (translation) {
+            title.textContent = translation;
+        }
+    }
+
+    // 翻译标签页
+    modal.querySelectorAll('.nav-link').forEach(el => {
+        const text = el.textContent.trim();
+        const translation = Translation.UI.settings?.tabs?.[text]
+            || Translation.UI.labels?.[text];
+        if (translation) {
+            el.textContent = translation;
+        }
+    });
+
+    // 翻译表头
+    modal.querySelectorAll('thead th').forEach(el => {
+        const text = el.textContent.trim();
+        const translation = Translation.UI.settings?.sections?.[text]
+            || Translation.UI.labels?.[text];
+        if (translation) {
+            el.textContent = translation;
+        }
+    });
+
+    // 翻译按钮
+    modal.querySelectorAll('.btn').forEach(btn => {
+        const text = btn.textContent.trim();
+        const translation = Translation.UI.buttons?.[text];
+        if (translation) {
+            btn.textContent = translation;
+        }
+    });
+
+    // 翻译标签文本
+    modal.querySelectorAll('label, .form-label').forEach(el => {
+        const text = el.textContent.trim();
+        const translation = Translation.UI.labels?.[text];
+        if (translation) {
+            el.textContent = translation;
+        }
+    });
+}
+
+// 设置模态框事件监听
+function setupModalTranslation() {
+    $(document).on('show.bs.modal', '.modal', function() {
+        const modal = this;
+        if (modal.dataset.uiTranslated) return;
+        translateModalContent(modal);
+        modal.dataset.uiTranslated = 'true';
+    });
+}
+
 // 导出完整json方法
 TranslationHelper.ExportTranslation = TranslationHelper.ExportTranslation ?? {};
 TranslationHelper.ExportTranslation.QuestLine = function () {
@@ -1002,6 +1114,9 @@ if (failed.length == 0) {
         message: `汉化加载完毕\n可以正常加载存档\n\n<div class="d-flex" style="justify-content: space-around;"><button class="btn btn-block btn-info m-0 col-5" onclick="window.PCHForceRefreshTranslation()">清空汉化缓存</button><button class="btn btn-block btn-info m-0 col-5" onclick="window.PCHImportAction()">本地导入汉化</button></div>`,
         timeout: 15000,
     });
+    // 初始化UI翻译
+    translateStaticUI();
+    setupModalTranslation();
 } else {
     Notifier.notify({
         title: SCRIPT_TITLE,
