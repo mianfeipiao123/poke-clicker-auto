@@ -36,6 +36,7 @@
       "Hatchery": "孵化屋",
       "Farm": "农场",
       "Underground": "地下",
+      "Oak Items": "高级道具",
       "Other": "其他",
       "Map Colors": "地图颜色",
       "Modals": "模态框",
@@ -72,7 +73,9 @@
     "Reset Colors": "重置颜色",
     "Save As Default Settings": "保存为默认设置",
     "Load From Default Settings": "加载默认设置",
-    "Reset Default Settings": "重置默认设置"
+    "Reset Default Settings": "重置默认设置",
+    "Unlock": "解锁",
+    "Clear": "清空"
   },
   "modals": {
     "Settings": "设置",
@@ -129,7 +132,12 @@
     "In Progress": "进行中",
     "Available": "可用",
     "Locked": "锁定",
-    "Unlocked": "已解锁"
+    "Unlocked": "已解锁",
+    "Oak Items": "高级道具",
+    "Achievement Tracker": "成就追踪",
+    "Select an achievement to track!": "请选择一个成就进行追踪！",
+    "Click \"List\" to start a new quest.": "点击“列表”开始新的任务。",
+    "Hatch!": "孵化！"
   },
   "pokedex": {
     "No Pokémon found": "未找到宝可梦",

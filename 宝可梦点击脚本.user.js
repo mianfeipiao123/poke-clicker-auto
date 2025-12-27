@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.33
+// @version      0.10.34
 // @description  内核汉化（任务线/NPC/成就/地区/城镇/道路/道馆）+ 镜像站 locales 回源（配合游戏内简体中文）
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
@@ -621,14 +621,26 @@ Translation.SubRegion = Object.assign(Translation.Regions.SubRegion ?? {}, Trans
 // 特殊处理
 Object.assign(Translation.Region, { "Sevii Islands": "七之岛" });
 
-$("[href='#mapBody'] > span").attr(
-    "data-bind",
-    "text: `城镇地图 (${TranslationHelper.Translation.RegionFull[GameConstants.camelCaseToString(GameConstants.Region[player.region])] ?? GameConstants.camelCaseToString(GameConstants.Region[player.region])})`"
-);
-$("#subregion-travel-buttons > button.btn.btn-sm.btn-primary").attr(
-    "data-bind",
-    "click: () => SubRegions.openModal(), text: `副区域旅行 (${TranslationHelper.Translation.SubRegion[player.subregionObject()?.name] ?? player.subregionObject()?.name ?? ''})`"
-);
+waitFor(() => document.querySelector("[href='#mapBody'] > span"), { timeoutMs: 30000, name: "城镇地图标题" })
+    .then(() => {
+        $("[href='#mapBody'] > span").attr(
+            "data-bind",
+            "text: `${TranslationHelper.toggleRaw ? 'Town Map' : '城镇地图'} (${TranslationHelper.toggleRaw ? GameConstants.camelCaseToString(GameConstants.Region[player.region]) : (TranslationHelper.Translation.RegionFull[GameConstants.camelCaseToString(GameConstants.Region[player.region])] ?? GameConstants.camelCaseToString(GameConstants.Region[player.region]))})`"
+        );
+    })
+    .catch((err) => console.warn("[翻译] 城镇地图标题绑定修改失败", err));
+
+waitFor(() => document.querySelector("#subregion-travel-buttons > button.btn.btn-sm.btn-primary"), {
+    timeoutMs: 30000,
+    name: "副区域旅行按钮",
+})
+    .then(() => {
+        $("#subregion-travel-buttons > button.btn.btn-sm.btn-primary").attr(
+            "data-bind",
+            "click: () => SubRegions.openModal(), text: `${TranslationHelper.toggleRaw ? 'Subregional Travel' : '副区域旅行'} (${TranslationHelper.toggleRaw ? (player.subregionObject()?.name ?? '') : (TranslationHelper.Translation.SubRegion[player.subregionObject()?.name] ?? player.subregionObject()?.name ?? '')})`"
+        );
+    })
+    .catch((err) => console.warn("[翻译] 副区域旅行按钮绑定修改失败", err));
 
 // 汉化道路
 const regionRouteReg = new RegExp(`^(${Object.keys(Translation.Region).join("|")}) Route (\\d+)$`);
@@ -1152,6 +1164,130 @@ function translateStaticUI() {
     });
 }
 
+function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getUITranslation(text) {
+    if (!Translation?.UI || !text) return undefined;
+    return (
+        Translation.UI.buttons?.[text] ||
+        Translation.UI.labels?.[text] ||
+        Translation.UI.modals?.[text] ||
+        Translation.UI.menu?.[text] ||
+        Translation.UI.settings?.tabs?.[text] ||
+        Translation.UI.settings?.sections?.[text] ||
+        Translation.UI.pokedex?.[text] ||
+        Translation.UI.pokemon?.[text] ||
+        Translation.UI.shop?.[text]
+    );
+}
+
+function translateLeafUIElement(el) {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) return;
+    if (el.childElementCount > 0) return;
+
+    const currentText = el.textContent;
+    const currentTrimmed = currentText.trim();
+    if (!currentTrimmed) return;
+
+    // 动态计数：Quests (0/4)
+    const questsLabel = Translation?.UI?.labels?.Quests || '任务';
+    if (!TranslationHelper.toggleRaw) {
+        const match = currentTrimmed.match(/^Quests \((\d+)\/(\d+)\)$/);
+        if (match) {
+            el.textContent = `${questsLabel} (${match[1]}/${match[2]})`;
+            return;
+        }
+    } else {
+        const match = currentTrimmed.match(new RegExp(`^${escapeRegExp(questsLabel)} \\((\\d+)\\/(\\d+)\\)$`));
+        if (match) {
+            el.textContent = `Quests (${match[1]}/${match[2]})`;
+            return;
+        }
+    }
+
+    const rawText = el.dataset.pchUiRaw ?? currentText;
+    const rawTrimmed = rawText.trim();
+    const translation = getUITranslation(rawTrimmed);
+    if (!translation) return;
+
+    if (el.dataset.pchUiRaw == null) {
+        el.dataset.pchUiRaw = currentText;
+    }
+    el.textContent = TranslationHelper.toggleRaw ? el.dataset.pchUiRaw : el.dataset.pchUiRaw.replace(rawTrimmed, translation);
+}
+
+function translateUIRoot(root) {
+    if (!Translation?.UI || !root) return;
+    const scope = root.nodeType === Node.ELEMENT_NODE ? root : root?.documentElement;
+    if (!scope || scope.nodeType !== Node.ELEMENT_NODE) return;
+
+    scope.querySelectorAll('span, button, a, p, div, label, th, td, h1, h2, h3, h4, h5, h6, code').forEach((el) => {
+        if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return;
+        translateLeafUIElement(el);
+    });
+}
+
+function setupQuestCountAutoTranslate() {
+    const spans = Array.from(document.querySelectorAll('span[data-bind]')).filter((span) => {
+        const bind = span.getAttribute('data-bind') || '';
+        return bind.includes('Quests (') && bind.includes('currentQuests()') && bind.includes('questSlots()');
+    });
+
+    spans.forEach((span) => {
+        if (span.__pchQuestCountObserver) {
+            translateLeafUIElement(span);
+            return;
+        }
+        const observer = new MutationObserver(() => translateLeafUIElement(span));
+        observer.observe(span, { characterData: true, childList: true, subtree: true });
+        span.__pchQuestCountObserver = observer;
+        translateLeafUIElement(span);
+    });
+}
+
+function setupUIAutoTranslation() {
+    if (setupUIAutoTranslation._installed) return;
+    setupUIAutoTranslation._installed = true;
+
+    // 初始扫一遍
+    translateUIRoot(document.body);
+    setupQuestCountAutoTranslate();
+
+    const pending = new Set();
+    let scheduled = false;
+    const flush = () => {
+        scheduled = false;
+        pending.forEach((node) => translateUIRoot(node));
+        pending.clear();
+        setupQuestCountAutoTranslate();
+    };
+
+    const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            for (const node of mutation.addedNodes) {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    pending.add(node);
+                }
+            }
+        }
+        if (!scheduled) {
+            scheduled = true;
+            setTimeout(flush, 0);
+        }
+    });
+
+    waitFor(() => document.body, { timeoutMs: 30000, name: 'document.body' })
+        .then(() => observer.observe(document.body, { childList: true, subtree: true }))
+        .catch(() => {
+            // ignore
+        });
+
+    // 切换原文/汉化时，重新应用 UI 文本
+    TranslationHelper._toggleRaw?.subscribe?.(() => translateUIRoot(document.body));
+}
+
 // 模态框翻译
 function translateModalContent(modal) {
     if (!Translation.UI || !modal) return;
@@ -1567,6 +1703,7 @@ if (failed.length == 0) {
         message: `汉化加载完毕\n可以正常加载存档\n\n<div class="d-flex" style="justify-content: space-around;"><button class="btn btn-block btn-info m-0 col-5" onclick="window.PCHForceRefreshTranslation()">清空汉化缓存</button><button class="btn btn-block btn-info m-0 col-5" onclick="window.PCHImportAction()">本地导入汉化</button></div>`,
         timeout: 15000,
     });
+    setupUIAutoTranslation();
     // 初始化UI翻译 - 等待DOM元素渲染完成
     waitFor(
         () => document.querySelector('#startMenu .dropdown-toggle'),
