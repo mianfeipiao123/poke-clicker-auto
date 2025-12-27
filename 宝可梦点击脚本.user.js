@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.43
+// @version      0.10.44
 // @description  内核汉化（任务线/NPC/成就/地区/城镇/道路/道馆）+ 镜像站 locales 回源（配合游戏内简体中文）
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
@@ -24,7 +24,7 @@
 /* global TownList, QuestLine:true, Notifier, MultipleQuestsQuest, App, NPC, NPCController, GameController, ko, Achievement:true, AchievementHandler, AchievementTracker, GameConstants, Routes, SubRegions, GymList, Gym, $ */
 
 ;(async () => {
-    const SCRIPT_VERSION = "0.10.43";
+    const SCRIPT_VERSION = "0.10.44";
     const SCRIPT_TITLE = "宝可梦点击脚本";
     const LOG_PREFIX = "PokeClickerHelper-Translation";
     const STORAGE_PREFIX = "PokeClickerHelper-Translation";
@@ -1232,8 +1232,14 @@ const missingUITextStorageKey = `${STORAGE_PREFIX}-missingUIText`;
 
 function shouldRecordMissingUIText(text) {
     if (!text) return false;
-    if (!/[A-Za-z]/.test(text)) return false;
-    if (text.length > 200) return false;
+    const value = String(text).trim();
+    if (!value) return false;
+    // 至少包含 2 个连续英文字母，过滤掉如 "1K" / "X攻击" 之类噪声
+    if (!/[A-Za-z]{2}/.test(value)) return false;
+    if (value.length > 200) return false;
+    // 过滤纯数字缩写（不需要翻译）
+    if (/^\d+(?:\.\d+)?[KMBT]$/i.test(value)) return false;
+    if (/^\d[\d,]*(?:\.\d+)?$/.test(value)) return false;
     return true;
 }
 
@@ -1296,6 +1302,19 @@ function normalizeUITextKey(text) {
         .trim();
 }
 
+function normalizeUILooseKey(text) {
+    const value = normalizeUITextKey(text);
+    try {
+        return value
+            .normalize("NFKD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^0-9A-Za-z]+/g, "")
+            .toLowerCase();
+    } catch {
+        return value.replace(/[^0-9A-Za-z]+/g, "").toLowerCase();
+    }
+}
+
 function getUITextCandidates(text) {
     const candidates = [];
     const push = (value) => {
@@ -1335,6 +1354,42 @@ function translateUIPattern(text) {
     const key = String(text).trim();
     if (!key) return undefined;
 
+    const direct = {
+        "Battle Points": "对战点",
+        "Dungeon Tokens": "地下城代币",
+        "Farm Points": "农场点",
+        "Quest Points": "任务点",
+        "Contest Tokens": "华丽大赛代币",
+        "Pokédollars": "宝可币",
+        "Pokedollars": "宝可币",
+        "Prof. Oak": "大木博士",
+        "Mom": "妈妈",
+        "All Categories": "全部分类",
+        "Shard Trader": "碎片商人",
+        "Fossil Piece": "化石碎片",
+        "Caught Shadow": "已捕获暗影",
+        "Pokérus State": "宝可病毒状态",
+        "Pokerus State": "宝可病毒状态",
+        "Dock": "码头",
+        "Orange League": "橘子联盟",
+    };
+    if (direct[key]) {
+        return direct[key];
+    }
+
+    const percentBonusMatch = key.match(/^\+(\d+(?:\.\d+)?)% bonus to (.+)$/i);
+    if (percentBonusMatch) {
+        const percent = percentBonusMatch[1];
+        const target = percentBonusMatch[2].trim();
+        const targetMap = {
+            "Egg Steps": "孵化步数",
+            "Gym and Dungeon Timers": "道馆与地牢计时",
+            "Shiny Chance": "闪光概率",
+        };
+        const targetZh = targetMap[target] ?? target;
+        return `+${percent}% ${targetZh} 加成`;
+    }
+
     const bonusMatch = key.match(/^\+(\d+)% Bonus to (.+?) for (\d+) seconds$/i);
     if (bonusMatch) {
         const percent = bonusMatch[1];
@@ -1342,7 +1397,7 @@ function translateUIPattern(text) {
         const seconds = bonusMatch[3];
 
         const targetMap = {
-            "Dungeon Tokens gained": "地牢代币获取量",
+            "Dungeon Tokens gained": "地下城代币获取量",
             "Pokédollars gained": "宝可币获取量",
             "Pokedollars gained": "宝可币获取量",
             "Pokémon attack": "宝可梦攻击",
@@ -1364,6 +1419,252 @@ function translateUIPattern(text) {
 
     if (/^See the Pok[eé]mon available on this route\.$/i.test(key)) {
         return "查看此道路可出现的宝可梦。";
+    }
+
+    const rawstBerryMatch = key.match(/^(.+?) Berry$/i);
+    if (rawstBerryMatch) {
+        const berryName = rawstBerryMatch[1].trim();
+        const berryTranslation = Translation?.Berry?.[berryName] || getUIResourceTranslation(berryName) || berryName;
+        return `${berryTranslation}`;
+    }
+
+    const hatchMatch = key.match(/^(\d+)\s*\/\s*(\d+)\s*hatches$/i);
+    if (hatchMatch) {
+        return `孵化：${hatchMatch[1]} / ${hatchMatch[2]}`;
+    }
+
+    const untilDeathMatch = key.match(/^(\d{2}:\d{2}:\d{2}) until death$/i);
+    if (untilDeathMatch) {
+        return `距离死亡：${untilDeathMatch[1]}`;
+    }
+
+    const secondsMatch = key.match(/^(\d+(?:\.\d+)?)\s+seconds?$/i);
+    if (secondsMatch) {
+        return `${secondsMatch[1]} 秒`;
+    }
+
+    const secsMatch = key.match(/^(\d+(?:\.\d+)?)\s+secs$/i);
+    if (secsMatch) {
+        return `${secsMatch[1]} 秒`;
+    }
+
+    const minsMatch = key.match(/^(\d+(?:\.\d+)?)\s+mins$/i);
+    if (minsMatch) {
+        return `${minsMatch[1]} 分钟`;
+    }
+
+    const hoursMatch = key.match(/^(\d+(?:\.\d+)?)\s+hours?$/i);
+    if (hoursMatch) {
+        return `${hoursMatch[1]} 小时`;
+    }
+
+    const daysMatch = key.match(/^(\d+(?:\.\d+)?)\s+days?$/i);
+    if (daysMatch) {
+        return `${daysMatch[1]} 天`;
+    }
+
+    const secondsAbbrMatch = key.match(/^(\d+(?:\.\d+)?)\s*s$/i);
+    if (secondsAbbrMatch) {
+        return `${secondsAbbrMatch[1]} 秒`;
+    }
+
+    const ratioSecondsMatch = key.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*s$/i);
+    if (ratioSecondsMatch) {
+        return `${ratioSecondsMatch[1]} / ${ratioSecondsMatch[2]} 秒`;
+    }
+
+    const inBagMatch = key.match(/^In Bag:\s*(\d[\d,]*)$/i);
+    if (inBagMatch) {
+        return `背包中：${inBagMatch[1]}`;
+    }
+
+    const levelMatch = key.match(/^Level\s+(\d+)$/i);
+    if (levelMatch) {
+        return `等级 ${levelMatch[1]}`;
+    }
+
+    const totalClearsMatch = key.match(/^Total Clears:\s*(\d+)$/i);
+    if (totalClearsMatch) {
+        return `总通关：${totalClearsMatch[1]}`;
+    }
+
+    const defeatedMatch = key.match(/^Defeated:\s*([\d,]+)\s+Pok[eé]mon$/i);
+    if (defeatedMatch) {
+        return `击败：${defeatedMatch[1]} 只宝可梦`;
+    }
+
+    const consumingGemsMatch = key.match(/^Consuming\s+(\d+)\s+Gem\(s\)\/Second$/i);
+    if (consumingGemsMatch) {
+        return `消耗 ${consumingGemsMatch[1]} 个宝石/秒`;
+    }
+
+    const collectItemsMatch = key.match(/^Collect\s+([\d,]+)\s+items from the Underground mines\.$/i);
+    if (collectItemsMatch) {
+        return `从地下矿洞收集 ${collectItemsMatch[1]} 个道具。`;
+    }
+
+    const collectTreasureMatch = key.match(/^Collect all buried treasure\s+(\d+)\s+times in the Underground mines\.$/i);
+    if (collectTreasureMatch) {
+        return `在地下矿洞中收集全部埋藏宝藏 ${collectTreasureMatch[1]} 次。`;
+    }
+
+    const catchShadowMatch = key.match(/^Catch\s+(\d+)\s+Shadow Pok[eé]mon\.$/i);
+    if (catchShadowMatch) {
+        return `捕获 ${catchShadowMatch[1]} 只暗影宝可梦。`;
+    }
+
+    const captureOrHatchMatch = key.match(/^Capture or hatch\s+(\d+)\s+([A-Za-z]+)-type Pok[eé]mon\.$/i);
+    if (captureOrHatchMatch) {
+        const count = captureOrHatchMatch[1];
+        const type = captureOrHatchMatch[2];
+        const typeZh = Translation?.GameEnums?.pokemonType?.[type] ?? type;
+        return `捕捉或孵化 ${count} 只${typeZh}属性宝可梦。`;
+    }
+
+    const gainedOfflineMatch = key.match(/^Gained\s+([\d,]+)\s+(.+?)\s+while offline:$/i);
+    if (gainedOfflineMatch) {
+        const amount = gainedOfflineMatch[1];
+        const thing = gainedOfflineMatch[2].trim();
+        const thingZh = getUIResourceTranslation(thing) || thing;
+        return `离线获得 ${amount} ${thingZh}：`;
+    }
+
+    const gainFarmPointsMatch = key.match(/^Gain\s+([\d,]+)\s+Farm Points\.$/i);
+    if (gainFarmPointsMatch) {
+        return `获得 ${gainFarmPointsMatch[1]} 农场点。`;
+    }
+
+    const gainGemsMatch = key.match(/^Gain\s+([\d,]+)\s+([A-Za-z]+)\s+gems\.$/i);
+    if (gainGemsMatch) {
+        const amount = gainGemsMatch[1];
+        const type = gainGemsMatch[2];
+        const typeZh = Translation?.GameEnums?.pokemonType?.[type] ?? type;
+        return `获得 ${amount} ${typeZh} 宝石。`;
+    }
+
+    const harvestBerriesMatch = key.match(/^Harvest\s+([\d,]+)\s+(.+?)\s+Berries at the farm\.$/i);
+    if (harvestBerriesMatch) {
+        const amount = harvestBerriesMatch[1];
+        const berryName = harvestBerriesMatch[2].trim();
+        const berryZh = Translation?.Berry?.[berryName] || getUIResourceTranslation(berryName) || berryName;
+        return `在农场收获 ${amount} 个${berryZh}。`;
+    }
+
+    const hatchEggsMatch = key.match(/^Hatch\s+([\d,]+)\s+Eggs\.$/i);
+    if (hatchEggsMatch) {
+        return `孵化 ${hatchEggsMatch[1]} 个蛋。`;
+    }
+
+    const dayPhaseMatch = key.match(/^(Dawn|Day|Night):\s*(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})$/i);
+    if (dayPhaseMatch) {
+        const phase = dayPhaseMatch[1].toLowerCase();
+        const start = dayPhaseMatch[2];
+        const end = dayPhaseMatch[3];
+        const phaseZh = phase === "dawn" ? "黎明" : phase === "day" ? "白天" : "夜晚";
+        return `${phaseZh}：${start} - ${end}`;
+    }
+
+    const deathMultiplierMatch = key.match(/^Death:\s*(.+)$/i);
+    if (deathMultiplierMatch) {
+        return `死亡：${deathMultiplierMatch[1].trim()}`;
+    }
+
+    const defeatGymMatch = key.match(/^Defeat\s+(.+?)\s+in\s+([A-Za-z]+)\s+(\d+)\s+times\.$/i);
+    if (defeatGymMatch) {
+        const gymName = defeatGymMatch[1].trim();
+        const region = defeatGymMatch[2];
+        const times = defeatGymMatch[3];
+        const regionZh = Translation?.Region?.[region] ?? region;
+        return `在${regionZh}击败${gymName} ${times} 次。`;
+    }
+
+    const evResistantMatch = key.match(
+        /^EVs until all Pok[eé]mon are resistant in this dungeon:\s*([\d,]+)\s*\/\s*([\d,]+)\.$/i
+    );
+    if (evResistantMatch) {
+        return `使本地下城全部宝可梦获得抗性所需努力值：${evResistantMatch[1]} / ${evResistantMatch[2]}。`;
+    }
+
+    const dugOutMatch = key.match(/^(.+?) dug out from the Underground\.$/i);
+    if (dugOutMatch) {
+        const itemName = dugOutMatch[1].trim();
+        const itemZh = getUIResourceTranslation(itemName) || itemName;
+        return `从地下挖出了 ${itemZh}。`;
+    }
+
+    const xItemMatch = key.match(/^x\s+(.+)$/i);
+    if (xItemMatch) {
+        const name = xItemMatch[1].trim();
+        const nameZh = getUIResourceTranslation(name) || name;
+        return `× ${nameZh}`;
+    }
+
+    const routeLogMatch = key.match(/^\[([A-Za-z]+)\s+Route\s+(\d+)\]\s*(.+)$/);
+    if (routeLogMatch) {
+        const region = routeLogMatch[1];
+        const routeNo = routeLogMatch[2];
+        const rest = routeLogMatch[3];
+        const regionZh = Translation?.Region?.[region] ?? region;
+        return `[${regionZh} ${routeNo}号道路] ${rest}`;
+    }
+
+    const useItemMatch = key.match(/^Use\s+([\d,]+)\s+(.+?)s\.$/i);
+    if (useItemMatch) {
+        const amount = useItemMatch[1];
+        const item = useItemMatch[2].trim();
+        const itemZh = getUIResourceTranslation(item) || item;
+        return `使用 ${amount} 个${itemZh}。`;
+    }
+
+    const dropItemMatch = key.match(/^敌方\s+(.+?)\s+掉落了一个\s+(.+?)\.$/);
+    if (dropItemMatch) {
+        const enemy = dropItemMatch[1].trim();
+        const item = dropItemMatch[2].trim();
+        const itemZh = getUIResourceTranslation(item) || item;
+        return `敌方 ${enemy} 掉落了一个 ${itemZh}。`;
+    }
+
+    const frontierRewardMatch = key.match(/^获得击败对战开拓区\s+([\d,]+)\s+层的\s+(\d+)\s+x\s+(.+?)!$/);
+    if (frontierRewardMatch) {
+        const stage = frontierRewardMatch[1];
+        const amount = frontierRewardMatch[2];
+        const item = frontierRewardMatch[3].trim();
+        const itemZh = getUIResourceTranslation(item) || item;
+        return `获得：击败对战开拓区 ${stage} 层奖励 ${amount} × ${itemZh}！`;
+    }
+
+    const achievementGetMatch = key.match(/^获得成就\"(.+?)\"\.$/);
+    if (achievementGetMatch) {
+        const name = achievementGetMatch[1].trim();
+        const translated = Translation?.AchievementName?.[name] ?? name;
+        return `获得成就“${translated}”。`;
+    }
+
+    const typeMultiplierMatch = key.match(/^([A-Za-z]+):\s*([0-9.]+)x$/);
+    if (typeMultiplierMatch) {
+        const type = typeMultiplierMatch[1];
+        const multiplier = typeMultiplierMatch[2];
+        const typeZh = Translation?.GameEnums?.pokemonType?.[type] ?? type;
+        return `${typeZh}：${multiplier} 倍`;
+    }
+
+    const typeGemsMatch = key.match(/^([A-Za-z]+) gems$/i);
+    if (typeGemsMatch) {
+        const type = typeGemsMatch[1];
+        const typeZh = Translation?.GameEnums?.pokemonType?.[type] ?? type;
+        return `${typeZh} 宝石`;
+    }
+
+    if (key === 'A wild') {
+        return '一只野生的';
+    }
+
+    if (key === 'is wandering around') {
+        return '正在四处游荡';
+    }
+
+    if (key === 'mega') {
+        return '超级进化';
     }
 
     const leftMatch = key.match(/^(.+?) left$/i);
@@ -1412,6 +1713,72 @@ function translateUIPattern(text) {
     return undefined;
 }
 
+function getUIResourceTranslation(text) {
+    if (!text) return undefined;
+    const key = String(text).trim();
+    if (!key) return undefined;
+
+    // 地区 / 副区域
+    const region = Translation?.Region?.[key] || Translation?.SubRegion?.[key];
+    if (region) return region;
+
+    // 城镇
+    const town = Translation?.Town?.[key];
+    if (town) return town;
+
+    // 地下城（按地区分组）
+    const dungeon = Translation?.Dungeon;
+    if (dungeon && typeof dungeon === "object") {
+        for (const regionMap of Object.values(dungeon)) {
+            if (regionMap && typeof regionMap === "object") {
+                const translation = regionMap[key];
+                if (translation) return translation;
+            }
+        }
+    }
+
+    // 浆果
+    const berry = Translation?.Berry?.[key];
+    if (berry) return berry;
+
+    // 进化石 / 超级石 / Z纯晶
+    const stone = Translation?.Stone;
+    if (stone && typeof stone === "object") {
+        const direct =
+            stone?.evolutionStone?.[key] || stone?.megaStone?.[key] || stone?.zCrystal?.[key];
+        if (direct) return direct;
+
+        const underscored = key.replace(/\s+/g, "_");
+        const normalized =
+            stone?.evolutionStone?.[underscored] || stone?.megaStone?.[underscored] || stone?.zCrystal?.[underscored];
+        if (normalized) return normalized;
+    }
+
+    // 道具（根据 Items.json 的 key 做宽松匹配：Master Ball -> Masterball / Rare Candy -> Rare_Candy）
+    const items = Translation?.Items;
+    if (items && typeof items === "object") {
+        const lookup = TranslationHelper._uiItemNameLookup ?? new Map();
+        if (!TranslationHelper._uiItemNameLookup) {
+            for (const category of Object.values(items)) {
+                if (!category || typeof category !== "object") continue;
+                for (const [rawKey, value] of Object.entries(category)) {
+                    if (!rawKey || typeof value !== "string") continue;
+                    const normalizedKey = normalizeUILooseKey(rawKey);
+                    if (normalizedKey && !lookup.has(normalizedKey)) {
+                        lookup.set(normalizedKey, value);
+                    }
+                }
+            }
+            TranslationHelper._uiItemNameLookup = lookup;
+        }
+        const normalizedKey = normalizeUILooseKey(key);
+        const translated = normalizedKey ? TranslationHelper._uiItemNameLookup?.get(normalizedKey) : undefined;
+        if (translated) return translated;
+    }
+
+    return undefined;
+}
+
 function getUITranslation(text) {
     if (!text) return undefined;
     const ui = Translation?.UI;
@@ -1430,11 +1797,17 @@ function getUITranslation(text) {
             ui?.settings?.sections?.[key] ||
             ui?.pokedex?.[key] ||
             ui?.pokemon?.[key] ||
-            ui?.shop?.[key] ||
-            raw?.[key] ||
-            FallbackUIText[key];
+            ui?.shop?.[key];
         if (translation) {
             return translation;
+        }
+        const resourceTranslation = getUIResourceTranslation(key);
+        if (resourceTranslation) {
+            return resourceTranslation;
+        }
+        const rawTranslation = raw?.[key] || FallbackUIText[key];
+        if (rawTranslation) {
+            return rawTranslation;
         }
     }
     return undefined;
