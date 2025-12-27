@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.44
+// @version      0.10.45
 // @description  内核汉化（任务线/NPC/成就/地区/城镇/道路/道馆）+ 镜像站 locales 回源（配合游戏内简体中文）
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
@@ -24,7 +24,7 @@
 /* global TownList, QuestLine:true, Notifier, MultipleQuestsQuest, App, NPC, NPCController, GameController, ko, Achievement:true, AchievementHandler, AchievementTracker, GameConstants, Routes, SubRegions, GymList, Gym, $ */
 
 ;(async () => {
-    const SCRIPT_VERSION = "0.10.44";
+    const SCRIPT_VERSION = "0.10.45";
     const SCRIPT_TITLE = "宝可梦点击脚本";
     const LOG_PREFIX = "PokeClickerHelper-Translation";
     const STORAGE_PREFIX = "PokeClickerHelper-Translation";
@@ -317,6 +317,74 @@ const CDN = {
     GitHub: "https://raw.githubusercontent.com/mianfeipiao123/poke-clicker-auto/main/json/",
 };
 
+// 资源合并：减少 json 文件数量与网络请求
+const RESOURCE_BUNDLES = {
+    QuestLine: "PCH_Core",
+    Town: "PCH_Core",
+    NPC: "PCH_Core",
+    Achievement: "PCH_Core",
+    Regions: "PCH_Core",
+    Route: "PCH_Core",
+    Gym: "PCH_Core",
+
+    UI: "PCH_UI",
+    UIRaw: "PCH_UI",
+
+    Items: "PCH_Data",
+    Berry: "PCH_Data",
+    Badge: "PCH_Data",
+    Dungeon: "PCH_Data",
+    Underground: "PCH_Data",
+    GameEnums: "PCH_Data",
+    Stone: "PCH_Data",
+    Farm: "PCH_Data",
+    SpecialEvent: "PCH_Data",
+    KeyItem: "PCH_Data",
+};
+
+const bundleCache = new Map();
+const bundlePromises = new Map();
+
+async function fetchBundle(bundleName, baseOrder) {
+    if (bundleCache.has(bundleName)) {
+        return bundleCache.get(bundleName);
+    }
+    if (bundlePromises.has(bundleName)) {
+        return bundlePromises.get(bundleName);
+    }
+
+    const cdnOrder = ["GitHub", ...baseOrder.filter((k) => k !== "GitHub")];
+    const errors = [];
+
+    const promise = (async () => {
+        for (const cdn of cdnOrder) {
+            const url = `${CDN[cdn]}${bundleName}.json?v=${encodeURIComponent(SCRIPT_VERSION)}`;
+            try {
+                const response = await fetchWithTimeout(url, TranslationHelper.config.Timeout);
+                if (response.status !== 200) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const json = await response.json();
+                bundleCache.set(bundleName, json);
+                return json;
+            } catch (error) {
+                errors.push({ cdn, url, error });
+                console.warn(LOG_PREFIX, "CDN获取bundle失败", bundleName, cdn, error);
+            }
+        }
+        const error = new Error(`获取${bundleName}.json失败`);
+        error.errors = errors;
+        throw error;
+    })();
+
+    bundlePromises.set(bundleName, promise);
+    try {
+        return await promise;
+    } finally {
+        bundlePromises.delete(bundleName);
+    }
+}
+
     const notifierReadyPromise = waitFor(
         () => typeof Notifier !== "undefined" && typeof Notifier.notify === "function",
         { name: "Notifier" }
@@ -357,6 +425,23 @@ const CDN = {
                 ? ["GitHub", ...baseOrder.filter((k) => k !== "GitHub")]
                 : baseOrder;
         const errors = [];
+
+        const bundleName = RESOURCE_BUNDLES[resource];
+        if (bundleName) {
+            try {
+                const bundle = await fetchBundle(bundleName, baseOrder);
+                const slice = bundle?.[resource];
+                if (slice == null) {
+                    throw new Error(`bundle缺少字段: ${resource}`);
+                }
+                console.log(LOG_PREFIX, "从bundle获取json", resource, bundleName);
+                writeCache(resource, slice);
+                return slice;
+            } catch (error) {
+                errors.push({ bundle: bundleName, error });
+                console.warn(LOG_PREFIX, "bundle获取json失败，fallback到单文件", resource, bundleName, error);
+            }
+        }
 
         for (const cdn of cdnOrder) {
             const url = `${CDN[cdn]}${resource}.json?v=${encodeURIComponent(SCRIPT_VERSION)}`;
@@ -1229,6 +1314,7 @@ const FallbackUIText = {
 
 const missingUIText = new Set();
 const missingUITextStorageKey = `${STORAGE_PREFIX}-missingUIText`;
+let missingUITextPersistTimer = null;
 
 function shouldRecordMissingUIText(text) {
     if (!text) return false;
@@ -1243,15 +1329,27 @@ function shouldRecordMissingUIText(text) {
     return true;
 }
 
-function recordMissingUIText(text) {
-    if (!shouldRecordMissingUIText(text)) return;
-    if (missingUIText.size >= 5000) return;
-    missingUIText.add(text);
+function persistMissingUIText() {
     try {
         localStorage.setItem(missingUITextStorageKey, JSON.stringify(Array.from(missingUIText)));
     } catch {
         // ignore
     }
+}
+
+function schedulePersistMissingUIText() {
+    if (missingUITextPersistTimer != null) return;
+    missingUITextPersistTimer = setTimeout(() => {
+        missingUITextPersistTimer = null;
+        persistMissingUIText();
+    }, 800);
+}
+
+function recordMissingUIText(text) {
+    if (!shouldRecordMissingUIText(text)) return;
+    if (missingUIText.size >= 5000) return;
+    missingUIText.add(text);
+    schedulePersistMissingUIText();
 }
 
 function loadMissingUITextCache() {
@@ -1822,7 +1920,10 @@ function translateLeafUIElement(el) {
     if (!currentTrimmed) return;
 
     if (TranslationHelper.toggleRaw && el.dataset.pchUiRaw != null) {
-        el.textContent = el.dataset.pchUiRaw;
+        const nextText = el.dataset.pchUiRaw;
+        if (nextText != null && nextText !== currentText) {
+            el.textContent = nextText;
+        }
         return;
     }
 
@@ -1831,13 +1932,19 @@ function translateLeafUIElement(el) {
     if (!TranslationHelper.toggleRaw) {
         const match = currentTrimmed.match(/^Quests \((\d+)\/(\d+)\)$/);
         if (match) {
-            el.textContent = `${questsLabel} (${match[1]}/${match[2]})`;
+            const nextText = `${questsLabel} (${match[1]}/${match[2]})`;
+            if (nextText !== currentText) {
+                el.textContent = nextText;
+            }
             return;
         }
     } else {
         const match = currentTrimmed.match(new RegExp(`^${escapeRegExp(questsLabel)} \\((\\d+)\\/(\\d+)\\)$`));
         if (match) {
-            el.textContent = `Quests (${match[1]}/${match[2]})`;
+            const nextText = `Quests (${match[1]}/${match[2]})`;
+            if (nextText !== currentText) {
+                el.textContent = nextText;
+            }
             return;
         }
     }
@@ -1854,7 +1961,10 @@ function translateLeafUIElement(el) {
             if (el.dataset.pchUiRaw == null) {
                 el.dataset.pchUiRaw = currentText;
             }
-            el.textContent = el.dataset.pchUiRaw.replace(rawTrimmed, `[活动] ${translatedTitle}`);
+            const nextText = el.dataset.pchUiRaw.replace(rawTrimmed, `[活动] ${translatedTitle}`);
+            if (nextText !== currentText) {
+                el.textContent = nextText;
+            }
             return;
         }
 
@@ -1863,7 +1973,10 @@ function translateLeafUIElement(el) {
             if (el.dataset.pchUiRaw == null) {
                 el.dataset.pchUiRaw = currentText;
             }
-            el.textContent = el.dataset.pchUiRaw.replace(rawTrimmed, `距离开始：${startsInMatch[1]}!`);
+            const nextText = el.dataset.pchUiRaw.replace(rawTrimmed, `距离开始：${startsInMatch[1]}!`);
+            if (nextText !== currentText) {
+                el.textContent = nextText;
+            }
             return;
         }
 
@@ -1872,7 +1985,10 @@ function translateLeafUIElement(el) {
             if (el.dataset.pchUiRaw == null) {
                 el.dataset.pchUiRaw = currentText;
             }
-            el.textContent = el.dataset.pchUiRaw.replace(rawTrimmed, `距离结束：${endsInMatch[1]}!`);
+            const nextText = el.dataset.pchUiRaw.replace(rawTrimmed, `距离结束：${endsInMatch[1]}!`);
+            if (nextText !== currentText) {
+                el.textContent = nextText;
+            }
             return;
         }
 
@@ -1880,7 +1996,10 @@ function translateLeafUIElement(el) {
             if (el.dataset.pchUiRaw == null) {
                 el.dataset.pchUiRaw = currentText;
             }
-            el.textContent = el.dataset.pchUiRaw.replace(rawTrimmed, '刚刚结束！');
+            const nextText = el.dataset.pchUiRaw.replace(rawTrimmed, '刚刚结束！');
+            if (nextText !== currentText) {
+                el.textContent = nextText;
+            }
             return;
         }
     }
@@ -1896,7 +2015,10 @@ function translateLeafUIElement(el) {
     if (el.dataset.pchUiRaw == null) {
         el.dataset.pchUiRaw = currentText;
     }
-    el.textContent = TranslationHelper.toggleRaw ? el.dataset.pchUiRaw : el.dataset.pchUiRaw.replace(rawTrimmed, translation);
+    const nextText = TranslationHelper.toggleRaw ? el.dataset.pchUiRaw : el.dataset.pchUiRaw.replace(rawTrimmed, translation);
+    if (nextText != null && nextText !== currentText) {
+        el.textContent = nextText;
+    }
 }
 
 const uiTextNodeRaw = new WeakMap();
@@ -1958,7 +2080,10 @@ function translateUITextNode(textNode) {
     if (storedRaw == null) {
         uiTextNodeRaw.set(textNode, rawText);
     }
-    textNode.textContent = rawText.replace(rawTrimmed, translation);
+    const nextText = rawText.replace(rawTrimmed, translation);
+    if (nextText !== textNode.textContent) {
+        textNode.textContent = nextText;
+    }
 }
 
 function translateUIComplexTextNodes(scope) {
@@ -1991,6 +2116,9 @@ function translateUIRoot(root) {
     const scope = root.nodeType === Node.ELEMENT_NODE ? root : root?.documentElement;
     if (!scope || scope.nodeType !== Node.ELEMENT_NODE) return;
 
+    if (scope.tagName !== 'SCRIPT' && scope.tagName !== 'STYLE') {
+        translateLeafUIElement(scope);
+    }
     scope.querySelectorAll('span, button, a, p, div, label, th, td, h1, h2, h3, h4, h5, h6, code').forEach((el) => {
         if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return;
         translateLeafUIElement(el);
@@ -2048,6 +2176,17 @@ function setupUIAutoTranslation() {
 
     const pending = new Set();
     let scheduled = false;
+    const addPendingNode = (node) => {
+        if (!node || node.nodeType !== Node.ELEMENT_NODE) return;
+        for (const existing of pending) {
+            if (existing === node) return;
+            if (existing.contains(node)) return;
+            if (node.contains(existing)) {
+                pending.delete(existing);
+            }
+        }
+        pending.add(node);
+    };
     const flush = () => {
         scheduled = false;
         pending.forEach((node) => translateUIRoot(node));
@@ -2058,9 +2197,18 @@ function setupUIAutoTranslation() {
 
     const observer = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
-            for (const node of mutation.addedNodes) {
-                if (node.nodeType === Node.ELEMENT_NODE) {
-                    pending.add(node);
+            if (mutation.type === 'childList') {
+                for (const node of mutation.addedNodes) {
+                    addPendingNode(node);
+                }
+                continue;
+            }
+            if (mutation.type === 'characterData') {
+                const value = mutation.target?.data;
+                if (!value || !/[A-Za-z]/.test(value)) continue;
+                const parent = mutation.target?.parentElement;
+                if (parent) {
+                    addPendingNode(parent);
                 }
             }
         }
@@ -2071,7 +2219,7 @@ function setupUIAutoTranslation() {
     });
 
     waitFor(() => document.body, { timeoutMs: 30000, name: 'document.body' })
-        .then(() => observer.observe(document.body, { childList: true, subtree: true }))
+        .then(() => observer.observe(document.body, { childList: true, characterData: true, subtree: true }))
         .catch(() => {
             // ignore
         });
@@ -2290,7 +2438,8 @@ TranslationHelper.ImportTranslation = async function (files) {
     for (const file of files) {
         const name = file.name;
         const type = name.replace(/\.json$/, "");
-        if (!resources.includes(type)) {
+        const isBundle = ["PCH_Core", "PCH_UI", "PCH_Data"].includes(type);
+        if (!resources.includes(type) && !isBundle) {
             Notifier.notify({
                 title: SCRIPT_TITLE,
                 message: `导入本地汉化json失败\n不支持的文件名：${name}`,
@@ -2317,11 +2466,25 @@ TranslationHelper.ImportTranslation = async function (files) {
                     return;
                 }
 
-                writeCache(type, result);
-                console.log(LOG_PREFIX, "本地导入json", type);
+                const applied = [];
+                if (isBundle) {
+                    Object.entries(result ?? {}).forEach(([key, value]) => {
+                        if (resources.includes(key) && value != null) {
+                            writeCache(key, value);
+                            applied.push(key);
+                        }
+                    });
+                    console.log(LOG_PREFIX, "本地导入bundle", type, applied);
+                } else {
+                    writeCache(type, result);
+                    applied.push(type);
+                    console.log(LOG_PREFIX, "本地导入json", type);
+                }
                 Notifier.notify({
                     title: SCRIPT_TITLE,
-                    message: `导入本地汉化json成功\n刷新游戏后生效：${name}`,
+                    message: isBundle
+                        ? `导入本地汉化bundle成功\n已写入缓存：${applied.join(", ")}\n刷新游戏后生效：${name}`
+                        : `导入本地汉化json成功\n刷新游戏后生效：${name}`,
                     type: 1,
                     timeout: 6000000,
                 });
