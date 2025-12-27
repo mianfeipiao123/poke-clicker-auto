@@ -1321,6 +1321,56 @@ const FallbackUIText = {
     "End time:": "结束时间：",
     "Encounter Santa Snorlax roaming the regions and Reindeer Stantler in Johto, discover the mystical creatures of Ilex Forest, Seafoam Islands and Sandgem Town or party at Bill's House.":
         "在各地区邂逅游走的圣诞老人卡比兽，并在城都地区遇到驯鹿惊角鹿；探索桧皮森林、双子岛、随意镇的神秘生物，或前往比尔的小屋参加派对。",
+    // 常用按钮
+    "Buy": "购买",
+    "Sell": "出售",
+    "Start": "开始",
+    "Stop": "停止",
+    "Reset": "重置",
+    "Max": "最大",
+    "Close": "关闭",
+    "Cancel": "取消",
+    "Confirm": "确认",
+    "Yes": "是",
+    "No": "否",
+    "OK": "确定",
+    "Apply": "应用",
+    "Sold Out": "售罄",
+    // 常用标签
+    "Settings": "设置",
+    "Statistics": "统计",
+    "Achievements": "成就",
+    "Pokédex": "图鉴",
+    "Quests": "任务",
+    "Shop": "商店",
+    // 设置标签页
+    "Display": "显示",
+    "Gameplay": "游戏",
+    "Sound": "声音",
+    "Notifications": "通知",
+    "Hotkeys": "快捷键",
+    "Other": "其他",
+    // 设置分组
+    "General": "通用",
+    "Currency": "货币",
+    "Hatchery": "孵化屋",
+    "Farm": "农场",
+    "Underground": "地下",
+    "Map Colors": "地图颜色",
+    // 图鉴
+    "Filters and Settings": "筛选与设置",
+    "No Pokémon found": "未找到宝可梦",
+    "Name or ID": "名称或编号",
+    "Types": "属性",
+    "Region": "地区",
+    "Category": "分类",
+    "All": "全部",
+    // 统计
+    "Stats": "数据",
+    "Multipliers": "倍率",
+    "Click Attack": "点击攻击",
+    "Statistic": "统计项",
+    "Amount": "数量",
 };
 
 const missingUIText = new Set();
