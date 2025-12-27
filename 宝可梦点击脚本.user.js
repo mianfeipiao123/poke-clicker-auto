@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.47
+// @version      0.10.47.1
 // @description  内核汉化（任务线/NPC/成就/地区/城镇/道路/道馆）+ 镜像站 locales 回源（配合游戏内简体中文）
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
@@ -24,7 +24,7 @@
 /* global TownList, QuestLine:true, Notifier, MultipleQuestsQuest, App, NPC, NPCController, GameController, ko, Achievement:true, AchievementHandler, AchievementTracker, GameConstants, Routes, SubRegions, GymList, Gym, $ */
 
 ;(async () => {
-    const SCRIPT_VERSION = "0.10.47";
+    const SCRIPT_VERSION = "0.10.47.1";
     const SCRIPT_TITLE = "宝可梦点击脚本";
     const LOG_PREFIX = "PokeClickerHelper-Translation";
     const STORAGE_PREFIX = "PokeClickerHelper-Translation";
@@ -1544,6 +1544,16 @@ function translateUIPattern(text) {
         return `${perHourMatch[1]}/小时`;
     }
 
+    const dailyFreeRefreshMatch = key.match(/^Daily free refresh in:\s*(.+)$/i);
+    if (dailyFreeRefreshMatch) {
+        return `每日免费刷新倒计时：${dailyFreeRefreshMatch[1].trim()}`;
+    }
+
+    const shortcutMatch = key.match(/^Shortcut:\s*(.+)$/i);
+    if (shortcutMatch) {
+        return `快捷键：${shortcutMatch[1].trim()}`;
+    }
+
     const cmMatch = key.match(/^([0-9][0-9.,]*)\s*cm$/i);
     if (cmMatch) {
         return `${cmMatch[1]} 厘米`;
@@ -1567,6 +1577,17 @@ function translateUIPattern(text) {
     const ballMatch = key.match(/^Ball\s*\((\d+)\)$/i);
     if (ballMatch) {
         return `球（${ballMatch[1]}）`;
+    }
+
+    const routeNoMatch = key.match(/^Route\s+(\d+)$/i);
+    if (routeNoMatch) {
+        return `${routeNoMatch[1]}号道路`;
+    }
+
+    const breedingQueueMatch = key.match(/^Your breeding queue is\s+(disabled|full)\.$/i);
+    if (breedingQueueMatch) {
+        const state = breedingQueueMatch[1].toLowerCase();
+        return state === 'disabled' ? '你的孵化队列已禁用。' : '你的孵化队列已满。';
     }
 
     const multiplierItemMatch = key.match(/^([0-9][0-9,]*)\s*[×x]\s*(.+)$/);
@@ -1673,6 +1694,20 @@ function translateUIPattern(text) {
 
     if (/^See the Pok[eé]mon available on this route\.$/i.test(key)) {
         return "查看此道路可出现的宝可梦。";
+    }
+
+    const hatcheryQueueLimitMatch = key.match(
+        /^Restrict your hatchery queue to a specific size or disable entirely\. Enter a value between 1 and your current max size \(([\d,]+)\), zero \(0\) to disable the queue entirely, or -1 for no limit\.$/i
+    );
+    if (hatcheryQueueLimitMatch) {
+        return `将孵化队列限制为指定大小或完全禁用。请输入 1 到你当前最大槽位（${hatcheryQueueLimitMatch[1]}）之间的数值；输入 0 将完全禁用队列；输入 -1 表示不限制。`;
+    }
+
+    const eggBonusMatch = key.match(
+        /^Once an egg hatches, your Pok[eé]mon will gain a bonus of (\d+(?:\.\d+)?)% of their base attack and have a higher chance of becoming shiny!$/i
+    );
+    if (eggBonusMatch) {
+        return `每当一个蛋孵化后，你的宝可梦将获得其基础攻击的 +${eggBonusMatch[1]}% 加成，并且更有可能变为闪光！`;
     }
 
     const rawstBerryMatch = key.match(/^(.+?) Berry$/i);
@@ -1954,6 +1989,34 @@ function translateUIPattern(text) {
         return `${damageMatch[1]} 倍伤害`;
     }
 
+    const capturedAllDungeonMatch = key.match(/^You have captured all Pok[eé]mon( shiny)? in this dungeon!$/i);
+    if (capturedAllDungeonMatch) {
+        return capturedAllDungeonMatch[1] ? '你已捕获本地下城全部闪光宝可梦！' : '你已捕获本地下城全部宝可梦！';
+    }
+
+    const capturedAllSafariMatch = key.match(/^You have captured all of the Safari Pok[eé]mon( shiny)?!$/i);
+    if (capturedAllSafariMatch) {
+        return capturedAllSafariMatch[1] ? '你已捕获全部狩猎区闪光宝可梦！' : '你已捕获全部狩猎区宝可梦！';
+    }
+
+    const dreamOrbOpenedMatch = key.match(/^You opened\s+([\d,]+)\s+(.+?)\s+Dream Orbs and received:$/i);
+    if (dreamOrbOpenedMatch) {
+        const amount = dreamOrbOpenedMatch[1];
+        const color = dreamOrbOpenedMatch[2].trim();
+        const colors = {
+            Red: '红色',
+            Blue: '蓝色',
+            Green: '绿色',
+            Yellow: '黄色',
+            Purple: '紫色',
+            Orange: '橙色',
+            Black: '黑色',
+            White: '白色',
+        };
+        const colorZh = colors[color] ?? color;
+        return `你打开了 ${amount} 个${colorZh}梦境宝珠，并获得：`;
+    }
+
     const evMatch = key.match(/^([0-9.,]+)\s*EVs?$/i);
     if (evMatch) {
         return `${evMatch[1]} 努力值`;
@@ -1980,6 +2043,17 @@ function getUIResourceTranslation(text) {
     const town = Translation?.Town?.[key];
     if (town) return town;
 
+    // 枚举（属性/天气/货币/遭遇类型等）
+    const enums = Translation?.GameEnums;
+    if (enums && typeof enums === 'object') {
+        for (const enumMap of Object.values(enums)) {
+            if (enumMap && typeof enumMap === 'object') {
+                const translated = enumMap[key];
+                if (typeof translated === 'string' && translated) return translated;
+            }
+        }
+    }
+
     // 地下城（按地区分组）
     const dungeon = Translation?.Dungeon;
     if (dungeon && typeof dungeon === "object") {
@@ -1994,6 +2068,17 @@ function getUIResourceTranslation(text) {
     // 浆果
     const berry = Translation?.Berry?.[key];
     if (berry) return berry;
+
+    // 地下（工具/宝藏/碎片等）
+    const underground = Translation?.Underground;
+    if (underground && typeof underground === 'object') {
+        const direct =
+            underground?.tools?.[key] ||
+            underground?.treasures?.[key] ||
+            underground?.shards?.[key] ||
+            underground?.plates?.[key];
+        if (direct) return direct;
+    }
 
     // 进化石 / 超级石 / Z纯晶
     const stone = Translation?.Stone;
@@ -2033,9 +2118,50 @@ function getUIResourceTranslation(text) {
     return undefined;
 }
 
+function buildFlatUILookup(obj, lookup) {
+    if (!obj || typeof obj !== 'object') return lookup;
+    for (const [k, v] of Object.entries(obj)) {
+        if (typeof v === 'string') {
+            if (!lookup.has(k)) {
+                lookup.set(k, v);
+            }
+            continue;
+        }
+        if (v && typeof v === 'object') {
+            buildFlatUILookup(v, lookup);
+        }
+    }
+    return lookup;
+}
+
+function getCachedFlatUILookup() {
+    const ui = Translation?.UI;
+    if (!ui || typeof ui !== 'object') return undefined;
+
+    if (TranslationHelper._uiFlatLookup && TranslationHelper._uiFlatLookupSource === ui) {
+        return TranslationHelper._uiFlatLookup;
+    }
+
+    const lookup = buildFlatUILookup(ui, new Map());
+    const lowerLookup = new Map();
+    for (const [key, value] of lookup.entries()) {
+        const normalized = normalizeUITextKey(key).toLowerCase();
+        if (!normalized) continue;
+        if (!lowerLookup.has(normalized)) {
+            lowerLookup.set(normalized, value);
+        }
+    }
+
+    TranslationHelper._uiFlatLookup = lookup;
+    TranslationHelper._uiFlatLookupLower = lowerLookup;
+    TranslationHelper._uiFlatLookupSource = ui;
+    return lookup;
+}
+
 function getUITranslation(text) {
     if (!text) return undefined;
-    const ui = Translation?.UI;
+    const uiLookup = getCachedFlatUILookup();
+    const uiLowerLookup = TranslationHelper._uiFlatLookupLower;
     const raw = Translation?.UIRaw;
     for (const key of getUITextCandidates(text)) {
         const pattern = translateUIPattern(key);
@@ -2043,15 +2169,8 @@ function getUITranslation(text) {
             return pattern;
         }
         const translation =
-            ui?.buttons?.[key] ||
-            ui?.labels?.[key] ||
-            ui?.modals?.[key] ||
-            ui?.menu?.[key] ||
-            ui?.settings?.tabs?.[key] ||
-            ui?.settings?.sections?.[key] ||
-            ui?.pokedex?.[key] ||
-            ui?.pokemon?.[key] ||
-            ui?.shop?.[key];
+            uiLookup?.get(key) ||
+            uiLowerLookup?.get(normalizeUITextKey(key).toLowerCase());
         if (translation) {
             return translation;
         }
@@ -2062,6 +2181,16 @@ function getUITranslation(text) {
         const rawTranslation = raw?.[key] || FallbackUIText[key];
         if (rawTranslation) {
             return rawTranslation;
+        }
+    }
+
+    // 统一处理末尾冒号：例如 "Base Attack:" / "Expertise:"
+    const trimmed = String(text).trim();
+    if (trimmed && /[:：]$/.test(trimmed)) {
+        const base = trimmed.slice(0, -1).trimEnd();
+        const translatedBase = getUITranslation(base);
+        if (translatedBase) {
+            return `${translatedBase}：`;
         }
     }
     return undefined;
