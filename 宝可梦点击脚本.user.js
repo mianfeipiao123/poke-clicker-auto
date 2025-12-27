@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.38
+// @version      0.10.39
 // @description  内核汉化（任务线/NPC/成就/地区/城镇/道路/道馆）+ 镜像站 locales 回源（配合游戏内简体中文）
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
@@ -24,7 +24,7 @@
 /* global TownList, QuestLine:true, Notifier, MultipleQuestsQuest, App, NPC, NPCController, GameController, ko, Achievement:true, AchievementHandler, AchievementTracker, GameConstants, Routes, SubRegions, GymList, Gym, $ */
 
 ;(async () => {
-    const SCRIPT_VERSION = "0.10.38";
+    const SCRIPT_VERSION = "0.10.39";
     const SCRIPT_TITLE = "宝可梦点击脚本";
     const LOG_PREFIX = "PokeClickerHelper-Translation";
     const STORAGE_PREFIX = "PokeClickerHelper-Translation";
@@ -173,7 +173,7 @@
     installLocalesRequestRewrite();
 
     const requiredResources = ["QuestLine", "Town", "NPC", "Achievement", "Regions", "Route", "Gym"];
-    const optionalResources = ["UI", "Items", "Berry", "Badge", "Dungeon", "Underground", "GameEnums", "Stone", "Farm", "SpecialEvent", "KeyItem"];
+    const optionalResources = ["UI", "UIRaw", "Items", "Berry", "Badge", "Dungeon", "Underground", "GameEnums", "Stone", "Farm", "SpecialEvent", "KeyItem"];
     const resources = [...requiredResources, ...optionalResources];
     const failed = [];
 
@@ -217,6 +217,7 @@
         const lastVersion = localStorage.getItem(storageScriptVersionKey);
         if (lastVersion !== SCRIPT_VERSION) {
             removeCache("UI");
+            removeCache("UIRaw");
             localStorage.setItem(storageScriptVersionKey, SCRIPT_VERSION);
         }
     } catch {
@@ -1309,10 +1310,81 @@ function getUITextCandidates(text) {
     return candidates;
 }
 
+function translateDurationAbbr(text) {
+    const match = String(text).trim().match(
+        /^(?:(\d{1,2})w\s*)?(?:(\d{1,2})d\s*)?(?:(\d{1,2})h\s*)?(?:(\d{1,2})m\s*)?(?:(\d{1,2})s\s*)?$/
+    );
+    if (!match) return undefined;
+    if (!match[1] && !match[2] && !match[3] && !match[4] && !match[5]) return undefined;
+
+    const parts = [];
+    if (match[1] != null) parts.push(`${match[1]}周`);
+    if (match[2] != null) parts.push(`${match[2]}天`);
+    if (match[3] != null) parts.push(`${match[3]}小时`);
+    if (match[4] != null) parts.push(`${match[4]}分`);
+    if (match[5] != null) parts.push(`${match[5]}秒`);
+    return parts.join(" ");
+}
+
+function translateUIPattern(text) {
+    const key = String(text).trim();
+    if (!key) return undefined;
+
+    const leftMatch = key.match(/^(.+?) left$/i);
+    if (leftMatch) {
+        const remaining = leftMatch[1].trim();
+        const duration = translateDurationAbbr(remaining);
+        return `剩余 ${duration ?? remaining}`;
+    }
+
+    const catchMatch = key.match(/^(\+)?(\d+)% chance to catch$/i);
+    if (catchMatch) {
+        const sign = catchMatch[1] ? "+" : "";
+        return `捕获率 ${sign}${catchMatch[2]}%`;
+    }
+
+    const fasterMatch = key.match(/^(\d+)% faster\.$/i);
+    if (fasterMatch) {
+        return `速度提高 ${fasterMatch[1]}%。`;
+    }
+
+    const clearsMatch = key.match(/^(\d+) clears$/i);
+    if (clearsMatch) {
+        return `${clearsMatch[1]} 次通关`;
+    }
+
+    const slotsMatch = key.match(/^(\d+) slots?$/i);
+    if (slotsMatch) {
+        return `${slotsMatch[1]} 个槽位`;
+    }
+
+    const damageMatch = key.match(/^([0-9.]+)x Damage$/i);
+    if (damageMatch) {
+        return `${damageMatch[1]} 倍伤害`;
+    }
+
+    const evMatch = key.match(/^([0-9.,]+)\s*EVs?$/i);
+    if (evMatch) {
+        return `${evMatch[1]} 努力值`;
+    }
+
+    const duration = translateDurationAbbr(key);
+    if (duration) {
+        return duration;
+    }
+
+    return undefined;
+}
+
 function getUITranslation(text) {
     if (!text) return undefined;
     const ui = Translation?.UI;
+    const raw = Translation?.UIRaw;
     for (const key of getUITextCandidates(text)) {
+        const pattern = translateUIPattern(key);
+        if (pattern) {
+            return pattern;
+        }
         const translation =
             ui?.buttons?.[key] ||
             ui?.labels?.[key] ||
@@ -1323,6 +1395,7 @@ function getUITranslation(text) {
             ui?.pokedex?.[key] ||
             ui?.pokemon?.[key] ||
             ui?.shop?.[key] ||
+            raw?.[key] ||
             FallbackUIText[key];
         if (translation) {
             return translation;
