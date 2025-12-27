@@ -68,6 +68,7 @@
     "Stop": "停止",
     "Pause": "暂停",
     "Resume": "继续",
+    "Next": "下一步",
     "Reset Resizable Modules": "重置可调整模块",
     "Reset Order": "重置顺序",
     "Reset Colors": "重置颜色",
@@ -137,7 +138,19 @@
     "Achievement Tracker": "成就追踪",
     "Select an achievement to track!": "请选择一个成就进行追踪！",
     "Click \"List\" to start a new quest.": "点击“列表”开始新的任务。",
-    "Hatch!": "孵化！"
+    "Hatch!": "孵化！",
+    "Professor Oak": "大木博士",
+    "Hello, there! Welcome to the world of Pokémon!": "你好！欢迎来到宝可梦的世界！",
+    "My name is Oak. People affectionately refer to me as the Pokémon Professor.": "我叫大木。人们亲切地称我为宝可梦博士。",
+    "This world is inhabited by creatures called Pokémon!": "这个世界居住着一种名为宝可梦的生物！",
+    "For some people, Pokémon are pets. Other use them for battling.": "有的人把宝可梦当作伙伴，也有人用它们进行对战。",
+    "As for myself… I study Pokémon as a profession.": "至于我……我的职业是研究宝可梦。",
+    "However, your very own Pokémon legend is about to unfold!": "而你专属的宝可梦传奇，即将展开！",
+    "A world of dreams and adventures with Pokémon awaits! Let's go!": "充满梦想与冒险的宝可梦世界在等着你！出发吧！",
+    "on now!": "正在进行！",
+    "Start time:": "开始时间：",
+    "End time:": "结束时间：",
+    "Encounter Santa Snorlax roaming the regions and Reindeer Stantler in Johto, discover the mystical creatures of Ilex Forest, Seafoam Islands and Sandgem Town or party at Bill's House.": "在各地区邂逅游走的圣诞老人卡比兽，并在城都地区遇到驯鹿惊角鹿；探索桧皮森林、双子岛、随意镇的神秘生物，或前往比尔的小屋参加派对。"
   },
   "pokedex": {
     "No Pokémon found": "未找到宝可梦",

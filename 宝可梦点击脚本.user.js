@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.34
+// @version      0.10.35
 // @description  内核汉化（任务线/NPC/成就/地区/城镇/道路/道馆）+ 镜像站 locales 回源（配合游戏内简体中文）
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
@@ -1191,6 +1191,11 @@ function translateLeafUIElement(el) {
     const currentTrimmed = currentText.trim();
     if (!currentTrimmed) return;
 
+    if (TranslationHelper.toggleRaw && el.dataset.pchUiRaw != null) {
+        el.textContent = el.dataset.pchUiRaw;
+        return;
+    }
+
     // 动态计数：Quests (0/4)
     const questsLabel = Translation?.UI?.labels?.Quests || '任务';
     if (!TranslationHelper.toggleRaw) {
@@ -1209,6 +1214,47 @@ function translateLeafUIElement(el) {
 
     const rawText = el.dataset.pchUiRaw ?? currentText;
     const rawTrimmed = rawText.trim();
+
+    if (!TranslationHelper.toggleRaw) {
+        const eventMatch = rawTrimmed.match(/^\[EVENT\]\s*(.+)$/);
+        if (eventMatch) {
+            const eventTitle = eventMatch[1].trim();
+            const translatedTitle =
+                Translation?.SpecialEvent?.events?.[eventTitle] || getUITranslation(eventTitle) || eventTitle;
+            if (el.dataset.pchUiRaw == null) {
+                el.dataset.pchUiRaw = currentText;
+            }
+            el.textContent = el.dataset.pchUiRaw.replace(rawTrimmed, `[活动] ${translatedTitle}`);
+            return;
+        }
+
+        const startsInMatch = rawTrimmed.match(/^starts in (.+)!$/);
+        if (startsInMatch) {
+            if (el.dataset.pchUiRaw == null) {
+                el.dataset.pchUiRaw = currentText;
+            }
+            el.textContent = el.dataset.pchUiRaw.replace(rawTrimmed, `距离开始：${startsInMatch[1]}!`);
+            return;
+        }
+
+        const endsInMatch = rawTrimmed.match(/^ends in (.+)!$/);
+        if (endsInMatch) {
+            if (el.dataset.pchUiRaw == null) {
+                el.dataset.pchUiRaw = currentText;
+            }
+            el.textContent = el.dataset.pchUiRaw.replace(rawTrimmed, `距离结束：${endsInMatch[1]}!`);
+            return;
+        }
+
+        if (rawTrimmed === 'just ended!') {
+            if (el.dataset.pchUiRaw == null) {
+                el.dataset.pchUiRaw = currentText;
+            }
+            el.textContent = el.dataset.pchUiRaw.replace(rawTrimmed, '刚刚结束！');
+            return;
+        }
+    }
+
     const translation = getUITranslation(rawTrimmed);
     if (!translation) return;
 
@@ -1216,6 +1262,90 @@ function translateLeafUIElement(el) {
         el.dataset.pchUiRaw = currentText;
     }
     el.textContent = TranslationHelper.toggleRaw ? el.dataset.pchUiRaw : el.dataset.pchUiRaw.replace(rawTrimmed, translation);
+}
+
+const uiTextNodeRaw = new WeakMap();
+
+function translateUITextNode(textNode) {
+    if (!textNode || textNode.nodeType !== Node.TEXT_NODE) return;
+    const parent = textNode.parentElement;
+    if (!parent) return;
+
+    // 仅处理“包含子元素”的节点（例如带 <br> / <strong> 的文本容器），避免和元素级翻译冲突
+    if (parent.childElementCount === 0) return;
+
+    const storedRaw = uiTextNodeRaw.get(textNode);
+    const rawText = storedRaw ?? textNode.textContent;
+    const rawTrimmed = rawText.trim();
+    if (!rawTrimmed) return;
+
+    if (TranslationHelper.toggleRaw) {
+        if (storedRaw != null && textNode.textContent !== storedRaw) {
+            textNode.textContent = storedRaw;
+        }
+        return;
+    }
+
+    let translation = getUITranslation(rawTrimmed);
+    if (!translation) {
+        const eventMatch = rawTrimmed.match(/^\[EVENT\]\s*(.+)$/);
+        if (eventMatch) {
+            const eventTitle = eventMatch[1].trim();
+            const translatedTitle =
+                Translation?.SpecialEvent?.events?.[eventTitle] || getUITranslation(eventTitle) || eventTitle;
+            translation = `[活动] ${translatedTitle}`;
+        }
+    }
+
+    if (!translation) {
+        const startsInMatch = rawTrimmed.match(/^starts in (.+)!$/);
+        if (startsInMatch) {
+            translation = `距离开始：${startsInMatch[1]}!`;
+        }
+    }
+
+    if (!translation) {
+        const endsInMatch = rawTrimmed.match(/^ends in (.+)!$/);
+        if (endsInMatch) {
+            translation = `距离结束：${endsInMatch[1]}!`;
+        }
+    }
+
+    if (!translation && rawTrimmed === 'just ended!') {
+        translation = '刚刚结束！';
+    }
+
+    if (!translation) return;
+
+    if (storedRaw == null) {
+        uiTextNodeRaw.set(textNode, rawText);
+    }
+    textNode.textContent = rawText.replace(rawTrimmed, translation);
+}
+
+function translateUIComplexTextNodes(scope) {
+    if (!scope || scope.nodeType !== Node.ELEMENT_NODE) return;
+
+    const walker = document.createTreeWalker(
+        scope,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode: (node) => {
+                const parent = node?.parentElement;
+                if (!parent) return NodeFilter.FILTER_REJECT;
+                const tag = parent.tagName;
+                if (tag === 'SCRIPT' || tag === 'STYLE') return NodeFilter.FILTER_REJECT;
+                if (parent.childElementCount === 0) return NodeFilter.FILTER_REJECT;
+                if (!node.textContent || !node.textContent.trim()) return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
+            },
+        },
+        false
+    );
+
+    while (walker.nextNode()) {
+        translateUITextNode(walker.currentNode);
+    }
 }
 
 function translateUIRoot(root) {
@@ -1227,6 +1357,7 @@ function translateUIRoot(root) {
         if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return;
         translateLeafUIElement(el);
     });
+    translateUIComplexTextNodes(scope);
 }
 
 function setupQuestCountAutoTranslate() {
@@ -1285,7 +1416,10 @@ function setupUIAutoTranslation() {
         });
 
     // 切换原文/汉化时，重新应用 UI 文本
-    TranslationHelper._toggleRaw?.subscribe?.(() => translateUIRoot(document.body));
+    TranslationHelper._toggleRaw?.subscribe?.(() => {
+        translateUIRoot(document.body);
+        setupQuestCountAutoTranslate();
+    });
 }
 
 // 模态框翻译
