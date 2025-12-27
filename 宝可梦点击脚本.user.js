@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.35
+// @version      0.10.36
 // @description  内核汉化（任务线/NPC/成就/地区/城镇/道路/道馆）+ 镜像站 locales 回源（配合游戏内简体中文）
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
@@ -24,6 +24,7 @@
 /* global TownList, QuestLine:true, Notifier, MultipleQuestsQuest, App, NPC, NPCController, GameController, ko, Achievement:true, AchievementHandler, AchievementTracker, GameConstants, Routes, SubRegions, GymList, Gym, $ */
 
 ;(async () => {
+    const SCRIPT_VERSION = "0.10.36";
     const SCRIPT_TITLE = "宝可梦点击脚本";
     const LOG_PREFIX = "PokeClickerHelper-Translation";
     const STORAGE_PREFIX = "PokeClickerHelper-Translation";
@@ -156,6 +157,7 @@
 
     const storageKey = (resource) => `${STORAGE_PREFIX}-${resource}`;
     const storageLastModifiedKey = (resource) => `${STORAGE_PREFIX}-${resource}-lastModified`;
+    const storageScriptVersionKey = `${STORAGE_PREFIX}-scriptVersion`;
 
     function readCache(resource) {
         const cache = localStorage.getItem(storageKey(resource));
@@ -186,6 +188,17 @@
     function removeCache(resource) {
         localStorage.removeItem(storageKey(resource));
         localStorage.removeItem(storageLastModifiedKey(resource));
+    }
+
+    // 脚本更新后自动清理UI缓存，避免仍使用旧的 UI.json（默认缓存 30 天）
+    try {
+        const lastVersion = localStorage.getItem(storageScriptVersionKey);
+        if (lastVersion !== SCRIPT_VERSION) {
+            removeCache("UI");
+            localStorage.setItem(storageScriptVersionKey, SCRIPT_VERSION);
+        }
+    } catch {
+        // ignore
     }
 
     function sleep(ms) {
@@ -1168,18 +1181,37 @@ function escapeRegExp(value) {
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const FallbackUIText = {
+    Next: "下一步",
+    "Professor Oak": "大木博士",
+    "Hello, there! Welcome to the world of Pokémon!": "你好！欢迎来到宝可梦的世界！",
+    "My name is Oak. People affectionately refer to me as the Pokémon Professor.": "我叫大木。人们亲切地称我为宝可梦博士。",
+    "This world is inhabited by creatures called Pokémon!": "这个世界居住着一种名为宝可梦的生物！",
+    "For some people, Pokémon are pets. Other use them for battling.": "有的人把宝可梦当作伙伴，也有人用它们进行对战。",
+    "As for myself… I study Pokémon as a profession.": "至于我……我的职业是研究宝可梦。",
+    "However, your very own Pokémon legend is about to unfold!": "而你专属的宝可梦传奇，即将展开！",
+    "A world of dreams and adventures with Pokémon awaits! Let's go!": "充满梦想与冒险的宝可梦世界在等着你！出发吧！",
+    "on now!": "正在进行！",
+    "Start time:": "开始时间：",
+    "End time:": "结束时间：",
+    "Encounter Santa Snorlax roaming the regions and Reindeer Stantler in Johto, discover the mystical creatures of Ilex Forest, Seafoam Islands and Sandgem Town or party at Bill's House.":
+        "在各地区邂逅游走的圣诞老人卡比兽，并在城都地区遇到驯鹿惊角鹿；探索桧皮森林、双子岛、随意镇的神秘生物，或前往比尔的小屋参加派对。",
+};
+
 function getUITranslation(text) {
-    if (!Translation?.UI || !text) return undefined;
+    if (!text) return undefined;
+    const ui = Translation?.UI;
     return (
-        Translation.UI.buttons?.[text] ||
-        Translation.UI.labels?.[text] ||
-        Translation.UI.modals?.[text] ||
-        Translation.UI.menu?.[text] ||
-        Translation.UI.settings?.tabs?.[text] ||
-        Translation.UI.settings?.sections?.[text] ||
-        Translation.UI.pokedex?.[text] ||
-        Translation.UI.pokemon?.[text] ||
-        Translation.UI.shop?.[text]
+        ui?.buttons?.[text] ||
+        ui?.labels?.[text] ||
+        ui?.modals?.[text] ||
+        ui?.menu?.[text] ||
+        ui?.settings?.tabs?.[text] ||
+        ui?.settings?.sections?.[text] ||
+        ui?.pokedex?.[text] ||
+        ui?.pokemon?.[text] ||
+        ui?.shop?.[text] ||
+        FallbackUIText[text]
     );
 }
 
