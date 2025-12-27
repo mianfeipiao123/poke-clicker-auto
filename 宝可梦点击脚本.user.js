@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.42
+// @version      0.10.43
 // @description  内核汉化（任务线/NPC/成就/地区/城镇/道路/道馆）+ 镜像站 locales 回源（配合游戏内简体中文）
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
@@ -24,7 +24,7 @@
 /* global TownList, QuestLine:true, Notifier, MultipleQuestsQuest, App, NPC, NPCController, GameController, ko, Achievement:true, AchievementHandler, AchievementTracker, GameConstants, Routes, SubRegions, GymList, Gym, $ */
 
 ;(async () => {
-    const SCRIPT_VERSION = "0.10.42";
+    const SCRIPT_VERSION = "0.10.43";
     const SCRIPT_TITLE = "宝可梦点击脚本";
     const LOG_PREFIX = "PokeClickerHelper-Translation";
     const STORAGE_PREFIX = "PokeClickerHelper-Translation";
@@ -1344,7 +1344,9 @@ function translateUIPattern(text) {
         const targetMap = {
             "Dungeon Tokens gained": "地牢代币获取量",
             "Pokédollars gained": "宝可币获取量",
+            "Pokedollars gained": "宝可币获取量",
             "Pokémon attack": "宝可梦攻击",
+            "Pokemon attack": "宝可梦攻击",
             "click attack": "点击攻击",
             "experience gained": "经验获取量",
         };
@@ -1353,14 +1355,14 @@ function translateUIPattern(text) {
     }
 
     const lootBonusMatch = key.match(
-        /^Increases chance for Pokémon to drop rare hold items and chance to multiply loot from dungeon chests, for (\d+) seconds\.$/i
+        /^Increases chance for Pok[eé]mon to drop rare hold items and chance to multiply loot from dungeon chests, for (\d+) seconds\.$/i
     );
     if (lootBonusMatch) {
         const seconds = lootBonusMatch[1];
         return `增加宝可梦掉落稀有携带道具的概率，并提高地牢宝箱战利品倍增的概率（持续 ${seconds} 秒）。`;
     }
 
-    if (/^See the Pokémon available on this route\.$/i.test(key)) {
+    if (/^See the Pok[eé]mon available on this route\.$/i.test(key)) {
         return "查看此道路可出现的宝可梦。";
     }
 
