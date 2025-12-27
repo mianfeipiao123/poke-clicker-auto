@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.36
+// @version      0.10.37
 // @description  内核汉化（任务线/NPC/成就/地区/城镇/道路/道馆）+ 镜像站 locales 回源（配合游戏内简体中文）
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
@@ -24,7 +24,7 @@
 /* global TownList, QuestLine:true, Notifier, MultipleQuestsQuest, App, NPC, NPCController, GameController, ko, Achievement:true, AchievementHandler, AchievementTracker, GameConstants, Routes, SubRegions, GymList, Gym, $ */
 
 ;(async () => {
-    const SCRIPT_VERSION = "0.10.36";
+    const SCRIPT_VERSION = "0.10.37";
     const SCRIPT_TITLE = "宝可梦点击脚本";
     const LOG_PREFIX = "PokeClickerHelper-Translation";
     const STORAGE_PREFIX = "PokeClickerHelper-Translation";
@@ -1392,6 +1392,27 @@ function translateUIRoot(root) {
     translateUIComplexTextNodes(scope);
 }
 
+function translateStartSequenceModal() {
+    const modal = document.querySelector('#startSequenceModal');
+    if (!modal) return;
+
+    modal.querySelectorAll('h5.modal-title, .modal-body p, .modal-footer button').forEach((el) => {
+        if (!el || el.nodeType !== Node.ELEMENT_NODE) return;
+
+        // 直接翻译标题/按钮
+        if (el.childElementCount === 0) {
+            translateLeafUIElement(el);
+            return;
+        }
+
+        // 翻译包含 <br> 的段落：逐个 textNode 替换
+        el.childNodes.forEach((node) => {
+            if (node.nodeType !== Node.TEXT_NODE) return;
+            translateUITextNode(node);
+        });
+    });
+}
+
 function setupQuestCountAutoTranslate() {
     const spans = Array.from(document.querySelectorAll('span[data-bind]')).filter((span) => {
         const bind = span.getAttribute('data-bind') || '';
@@ -1417,6 +1438,7 @@ function setupUIAutoTranslation() {
     // 初始扫一遍
     translateUIRoot(document.body);
     setupQuestCountAutoTranslate();
+    translateStartSequenceModal();
 
     const pending = new Set();
     let scheduled = false;
@@ -1425,6 +1447,7 @@ function setupUIAutoTranslation() {
         pending.forEach((node) => translateUIRoot(node));
         pending.clear();
         setupQuestCountAutoTranslate();
+        translateStartSequenceModal();
     };
 
     const observer = new MutationObserver((mutations) => {
@@ -1451,6 +1474,7 @@ function setupUIAutoTranslation() {
     TranslationHelper._toggleRaw?.subscribe?.(() => {
         translateUIRoot(document.body);
         setupQuestCountAutoTranslate();
+        translateStartSequenceModal();
     });
 }
 
