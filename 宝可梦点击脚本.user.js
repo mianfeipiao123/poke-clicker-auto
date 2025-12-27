@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.40
+// @version      0.10.41
 // @description  内核汉化（任务线/NPC/成就/地区/城镇/道路/道馆）+ 镜像站 locales 回源（配合游戏内简体中文）
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
@@ -24,7 +24,7 @@
 /* global TownList, QuestLine:true, Notifier, MultipleQuestsQuest, App, NPC, NPCController, GameController, ko, Achievement:true, AchievementHandler, AchievementTracker, GameConstants, Routes, SubRegions, GymList, Gym, $ */
 
 ;(async () => {
-    const SCRIPT_VERSION = "0.10.40";
+    const SCRIPT_VERSION = "0.10.41";
     const SCRIPT_TITLE = "宝可梦点击脚本";
     const LOG_PREFIX = "PokeClickerHelper-Translation";
     const STORAGE_PREFIX = "PokeClickerHelper-Translation";
@@ -303,7 +303,7 @@
     (CoreModule ?? window).TranslationHelper = TranslationHelper;
     window.TranslationHelper = TranslationHelper;
     TranslationHelper.config = {
-        CDN: CoreModule?.get("TranslationHelperCDN", "jsDelivr", true) ?? "jsDelivr",
+        CDN: CoreModule?.get("TranslationHelperCDN", "GitHub", true) ?? "GitHub",
         UpdateDelay: CoreModule?.get("TranslationHelperUpdateDelay", 30, true) ?? 30,
         Timeout: CoreModule?.get("TranslationHelperTimeout", 5000, true) ?? 5000,
     };
@@ -351,11 +351,15 @@ const CDN = {
         const selected = Object.prototype.hasOwnProperty.call(CDN, TranslationHelper.config.CDN)
             ? TranslationHelper.config.CDN
             : "jsDelivr";
-        const cdnOrder = [selected, ...Object.keys(CDN).filter((k) => k !== selected)];
+        const baseOrder = [selected, ...Object.keys(CDN).filter((k) => k !== selected)];
+        const cdnOrder =
+            resource === "UI" || resource === "UIRaw"
+                ? ["GitHub", ...baseOrder.filter((k) => k !== "GitHub")]
+                : baseOrder;
         const errors = [];
 
         for (const cdn of cdnOrder) {
-            const url = `${CDN[cdn]}${resource}.json`;
+            const url = `${CDN[cdn]}${resource}.json?v=${encodeURIComponent(SCRIPT_VERSION)}`;
             try {
                 const response = await fetchWithTimeout(url, TranslationHelper.config.Timeout);
                 if (response.status !== 200) {
