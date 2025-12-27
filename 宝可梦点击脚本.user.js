@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.37
+// @version      0.10.38
 // @description  内核汉化（任务线/NPC/成就/地区/城镇/道路/道馆）+ 镜像站 locales 回源（配合游戏内简体中文）
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
@@ -24,7 +24,7 @@
 /* global TownList, QuestLine:true, Notifier, MultipleQuestsQuest, App, NPC, NPCController, GameController, ko, Achievement:true, AchievementHandler, AchievementTracker, GameConstants, Routes, SubRegions, GymList, Gym, $ */
 
 ;(async () => {
-    const SCRIPT_VERSION = "0.10.37";
+    const SCRIPT_VERSION = "0.10.38";
     const SCRIPT_TITLE = "宝可梦点击脚本";
     const LOG_PREFIX = "PokeClickerHelper-Translation";
     const STORAGE_PREFIX = "PokeClickerHelper-Translation";
@@ -34,6 +34,9 @@
     const LOCALES_PATH_RE = /\/locales\/([^/]+)\/([^/]+\.json)$/i;
     const localesPatchState = {
         enabled: false,
+        // 强制将游戏的 i18next 语言资源请求重写为该语言（即使游戏语言仍为英文）
+        // 默认简体中文：zh-Hans
+        forceLanguage: "zh-Hans",
         baseUrl: OFFICIAL_TRANSLATIONS_BASE,
         rewrites: 0,
         lastRewritten: null,
@@ -69,8 +72,22 @@
         return !isLocal && !isOfficial;
     }
 
+    function computeForcedLocaleLanguage() {
+        const params = new URLSearchParams(window.location.search);
+        const disable = params.get("pchForceLang") || params.get("forceLang");
+        if (disable && ["0", "false", "off", "disable", "disabled"].includes(disable.toLowerCase())) {
+            return null;
+        }
+        const override = params.get("pchLang") || params.get("pchLocale") || params.get("lang");
+        if (override) {
+            return override.trim() || null;
+        }
+        return localesPatchState.forceLanguage || null;
+    }
+
     function rewriteLocalesUrl(inputUrl) {
-        if (!localesPatchState.enabled) {
+        const forceLanguage = localesPatchState.forceLanguage;
+        if (!localesPatchState.enabled && !forceLanguage) {
             return null;
         }
         if (typeof inputUrl !== "string" || !inputUrl) {
@@ -84,7 +101,9 @@
             }
             const lng = match[1];
             const file = match[2];
-            const rewritten = `${localesPatchState.baseUrl}/locales/${lng}/${file}`;
+            const targetLng = forceLanguage || lng;
+            const base = localesPatchState.enabled ? localesPatchState.baseUrl : url.origin;
+            const rewritten = `${base}/locales/${targetLng}/${file}`;
             if (rewritten === url.href) {
                 return null;
             }
@@ -94,14 +113,17 @@
             if (!match) {
                 return null;
             }
-            return `${localesPatchState.baseUrl}/locales/${match[1]}/${match[2]}`;
+            const targetLng = forceLanguage || match[1];
+            const base = localesPatchState.enabled ? localesPatchState.baseUrl : window.location.origin;
+            return `${base}/locales/${targetLng}/${match[2]}`;
         }
     }
 
     function installLocalesRequestRewrite() {
         localesPatchState.baseUrl = computeLocalesBaseUrl();
         localesPatchState.enabled = shouldForceLocalesBaseUrl();
-        if (!localesPatchState.enabled) {
+        localesPatchState.forceLanguage = computeForcedLocaleLanguage();
+        if (!localesPatchState.enabled && !localesPatchState.forceLanguage) {
             return;
         }
 
@@ -1189,6 +1211,7 @@ const FallbackUIText = {
     "This world is inhabited by creatures called Pokémon!": "这个世界居住着一种名为宝可梦的生物！",
     "For some people, Pokémon are pets. Other use them for battling.": "有的人把宝可梦当作伙伴，也有人用它们进行对战。",
     "As for myself… I study Pokémon as a profession.": "至于我……我的职业是研究宝可梦。",
+    "As for myself... I study Pokémon as a profession.": "至于我……我的职业是研究宝可梦。",
     "However, your very own Pokémon legend is about to unfold!": "而你专属的宝可梦传奇，即将展开！",
     "A world of dreams and adventures with Pokémon awaits! Let's go!": "充满梦想与冒险的宝可梦世界在等着你！出发吧！",
     "on now!": "正在进行！",
@@ -1198,21 +1221,114 @@ const FallbackUIText = {
         "在各地区邂逅游走的圣诞老人卡比兽，并在城都地区遇到驯鹿惊角鹿；探索桧皮森林、双子岛、随意镇的神秘生物，或前往比尔的小屋参加派对。",
 };
 
+const missingUIText = new Set();
+const missingUITextStorageKey = `${STORAGE_PREFIX}-missingUIText`;
+
+function shouldRecordMissingUIText(text) {
+    if (!text) return false;
+    if (!/[A-Za-z]/.test(text)) return false;
+    if (text.length > 200) return false;
+    return true;
+}
+
+function recordMissingUIText(text) {
+    if (!shouldRecordMissingUIText(text)) return;
+    if (missingUIText.size >= 5000) return;
+    missingUIText.add(text);
+    try {
+        localStorage.setItem(missingUITextStorageKey, JSON.stringify(Array.from(missingUIText)));
+    } catch {
+        // ignore
+    }
+}
+
+function loadMissingUITextCache() {
+    try {
+        const raw = localStorage.getItem(missingUITextStorageKey);
+        if (!raw) return;
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+            list.forEach((item) => {
+                if (typeof item === "string") {
+                    missingUIText.add(item);
+                }
+            });
+        }
+    } catch {
+        // ignore
+    }
+}
+
+function downloadTextFile(filename, content) {
+    const blob = new Blob([content], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+window.PCHExportMissingUIText = () => {
+    const entries = Array.from(missingUIText).sort();
+    const json = Object.fromEntries(entries.map((key) => [key, ""]));
+    downloadTextFile(`PokeClicker-missing-ui-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(json, null, 2));
+};
+
+loadMissingUITextCache();
+
+function normalizeUITextKey(text) {
+    return String(text)
+        .replace(/\u00a0/g, " ")
+        .replace(/\u200b/g, "")
+        .replace(/[“”]/g, '"')
+        .replace(/[‘’]/g, "'")
+        .replace(/\u2026/g, "...")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function getUITextCandidates(text) {
+    const candidates = [];
+    const push = (value) => {
+        if (!value) return;
+        const str = String(value);
+        if (!str) return;
+        if (!candidates.includes(str)) candidates.push(str);
+    };
+
+    push(text);
+    const normalized = normalizeUITextKey(text);
+    push(normalized);
+    // 兼容 … / ...
+    push(normalized.replace(/\.{3}/g, "…"));
+    push(String(text).replace(/\u2026/g, "..."));
+    push(String(text).replace(/\.{3}/g, "…"));
+    return candidates;
+}
+
 function getUITranslation(text) {
     if (!text) return undefined;
     const ui = Translation?.UI;
-    return (
-        ui?.buttons?.[text] ||
-        ui?.labels?.[text] ||
-        ui?.modals?.[text] ||
-        ui?.menu?.[text] ||
-        ui?.settings?.tabs?.[text] ||
-        ui?.settings?.sections?.[text] ||
-        ui?.pokedex?.[text] ||
-        ui?.pokemon?.[text] ||
-        ui?.shop?.[text] ||
-        FallbackUIText[text]
-    );
+    for (const key of getUITextCandidates(text)) {
+        const translation =
+            ui?.buttons?.[key] ||
+            ui?.labels?.[key] ||
+            ui?.modals?.[key] ||
+            ui?.menu?.[key] ||
+            ui?.settings?.tabs?.[key] ||
+            ui?.settings?.sections?.[key] ||
+            ui?.pokedex?.[key] ||
+            ui?.pokemon?.[key] ||
+            ui?.shop?.[key] ||
+            FallbackUIText[key];
+        if (translation) {
+            return translation;
+        }
+    }
+    return undefined;
 }
 
 function translateLeafUIElement(el) {
@@ -1288,7 +1404,12 @@ function translateLeafUIElement(el) {
     }
 
     const translation = getUITranslation(rawTrimmed);
-    if (!translation) return;
+    if (!translation) {
+        if (!TranslationHelper.toggleRaw) {
+            recordMissingUIText(normalizeUITextKey(rawTrimmed));
+        }
+        return;
+    }
 
     if (el.dataset.pchUiRaw == null) {
         el.dataset.pchUiRaw = currentText;
@@ -1347,7 +1468,10 @@ function translateUITextNode(textNode) {
         translation = '刚刚结束！';
     }
 
-    if (!translation) return;
+    if (!translation) {
+        recordMissingUIText(normalizeUITextKey(rawTrimmed));
+        return;
+    }
 
     if (storedRaw == null) {
         uiTextNodeRaw.set(textNode, rawText);
@@ -1786,6 +1910,7 @@ if (CoreModule) {
         <div style="flex: auto;">
             <button id="${prefix}Refresh" class="btn btn-sm btn-primary mr-1" data-save="false" title="刷新游戏后强制请求汉化json&#10;*仅清空脚本缓存，可能存在浏览器缓存需手动清理">清空缓存</button>
             <button id="${prefix}Import" class="btn btn-sm btn-primary mr-1" data-save="false" title="导入本地汉化文件覆盖汉化缓存">导入汉化</button>
+            <button id="${prefix}ExportMissing" class="btn btn-sm btn-primary mr-1" data-save="false" title="导出当前检测到的未翻译英文文本（用于补翻译）">导出未翻译</button>
             <button id="${prefix}Toggle" class="btn btn-sm btn-primary mr-1" data-save="false" value="切换原文" title="">切换原文</button>
         </div>
         <div class="contentContainer d-flex ml-2 mt-2" style="flex: auto;align-items: center;flex-wrap: wrap;">
@@ -1845,6 +1970,9 @@ if (CoreModule) {
             })
             .on("click", `#${prefix}Import`, function () {
                 window.PCHImportAction();
+            })
+            .on("click", `#${prefix}ExportMissing`, function () {
+                window.PCHExportMissingUIText?.();
             })
             .on("change", "[data-save=global]", function () {
                 const id = this.id.replace(prefix, "");
