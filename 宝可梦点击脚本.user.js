@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.46
+// @version      0.10.47
 // @description  内核汉化（任务线/NPC/成就/地区/城镇/道路/道馆）+ 镜像站 locales 回源（配合游戏内简体中文）
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
@@ -24,7 +24,7 @@
 /* global TownList, QuestLine:true, Notifier, MultipleQuestsQuest, App, NPC, NPCController, GameController, ko, Achievement:true, AchievementHandler, AchievementTracker, GameConstants, Routes, SubRegions, GymList, Gym, $ */
 
 ;(async () => {
-    const SCRIPT_VERSION = "0.10.46";
+    const SCRIPT_VERSION = "0.10.47";
     const SCRIPT_TITLE = "宝可梦点击脚本";
     const LOG_PREFIX = "PokeClickerHelper-Translation";
     const STORAGE_PREFIX = "PokeClickerHelper-Translation";
@@ -1331,6 +1331,8 @@ function shouldRecordMissingUIText(text) {
     if (!text) return false;
     const value = String(text).trim();
     if (!value) return false;
+    // 形如 "{money}" 的占位符不需要翻译（用于模板/提示），避免污染缺失列表
+    if (/^\{[A-Za-z0-9_]+\}$/.test(value)) return false;
     // 至少包含 2 个连续英文字母，过滤掉如 "1K" / "X攻击" 之类噪声
     if (!/[A-Za-z]{2}/.test(value)) return false;
     if (value.length > 200) return false;
@@ -1484,6 +1486,99 @@ function translateUIPattern(text) {
     };
     if (direct[key]) {
         return direct[key];
+    }
+
+    // 速度：1,300/hour
+    const perHourMatch = key.match(/^([0-9][0-9,]*)\/hour$/i);
+    if (perHourMatch) {
+        return `${perHourMatch[1]}/小时`;
+    }
+
+    const cmMatch = key.match(/^([0-9][0-9.,]*)\s*cm$/i);
+    if (cmMatch) {
+        return `${cmMatch[1]} 厘米`;
+    }
+
+    const amountMatch = key.match(/^Amount:\s*([0-9][0-9,]*)$/i);
+    if (amountMatch) {
+        return `数量：${amountMatch[1]}`;
+    }
+
+    const evsMatch = key.match(/^EVs:\s*([0-9][0-9,]*)$/i);
+    if (evsMatch) {
+        return `努力值：${evsMatch[1]}`;
+    }
+
+    const attemptsMatch = key.match(/^Total Attempts:\s*([0-9][0-9,]*)$/i);
+    if (attemptsMatch) {
+        return `总尝试次数：${attemptsMatch[1]}`;
+    }
+
+    const ballMatch = key.match(/^Ball\s*\((\d+)\)$/i);
+    if (ballMatch) {
+        return `球（${ballMatch[1]}）`;
+    }
+
+    const multiplierItemMatch = key.match(/^([0-9][0-9,]*)\s*[×x]\s*(.+)$/);
+    if (multiplierItemMatch) {
+        const amount = multiplierItemMatch[1];
+        const name = multiplierItemMatch[2].trim();
+        const fallback = {
+            Everstone: "不变石",
+            Diamond: "钻石",
+        };
+        const nameZh = fallback[name] || getUIResourceTranslation(name) || name;
+        return `${amount} × ${nameZh}`;
+    }
+
+    const berryIdMatch = key.match(/^(.+?)\s+Berry\s*\((\d+)\)$/i);
+    if (berryIdMatch) {
+        const berryName = berryIdMatch[1].trim();
+        const id = berryIdMatch[2];
+        const berryZh = Translation?.Berry?.[berryName] || getUIResourceTranslation(berryName) || berryName;
+        return `${berryZh} (${id})`;
+    }
+
+    const locatedMatch = key.match(/^(.+?)\s+-\s+(.+?)\s+\((.+?)\)$/);
+    if (locatedMatch) {
+        const name = locatedMatch[1].trim();
+        const region = locatedMatch[2].trim();
+        const sub = locatedMatch[3].trim();
+
+        const nameZh = getUIResourceTranslation(name) || (name === "Unknown Route" ? "未知道路" : name);
+        const regionZh = Translation?.Region?.[region] ?? region;
+
+        let subZh = Translation?.SubRegion?.[sub];
+        if (!subZh) {
+            const subParts = sub.match(/^(.+?)\s+(\d+)$/);
+            if (subParts) {
+                const base = subParts[1].trim();
+                const suffix = subParts[2];
+                const baseZh = Translation?.SubRegion?.[base] ?? Translation?.Region?.[base] ?? base;
+                subZh = `${baseZh} ${suffix}`;
+            }
+        }
+        subZh = subZh ?? Translation?.RegionFull?.[sub] ?? Translation?.Region?.[sub] ?? sub;
+
+        return `${nameZh} - ${regionZh} (${subZh})`;
+    }
+
+    const timeRangeMatch = key.match(/^(Dawn|Day|Dusk|Night):\s*(.+)$/i);
+    if (timeRangeMatch) {
+        const part = timeRangeMatch[1].toLowerCase();
+        const rest = timeRangeMatch[2];
+        const labels = {
+            dawn: "黎明",
+            day: "白天",
+            dusk: "黄昏",
+            night: "夜晚",
+        };
+        return `${labels[part] || timeRangeMatch[1]}：${rest}`;
+    }
+
+    const oakEquippedMatch = key.match(/^Oak Items Equipped:\s*(\d+)\/(\d+)$/i);
+    if (oakEquippedMatch) {
+        return `已装备大木道具：${oakEquippedMatch[1]}/${oakEquippedMatch[2]}`;
     }
 
     const percentBonusMatch = key.match(/^\+(\d+(?:\.\d+)?)% bonus to (.+)$/i);
