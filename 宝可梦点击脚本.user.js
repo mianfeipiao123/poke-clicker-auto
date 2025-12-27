@@ -914,6 +914,24 @@ function translateUndergroundItems() {
         });
         console.log('[翻译] 地下物品displayName属性已修改');
     }
+
+    // 修改背包/商店等 ItemList 中地下物品的 displayName
+    if (typeof ItemList !== 'undefined') {
+        Object.entries(ItemList).forEach(([key, item]) => {
+            if (!item || item._undergroundTranslationApplied) return;
+
+            const translation = allUnderground[key];
+            if (!translation) return;
+
+            const rawName = item.displayName;
+            Object.defineProperty(item, 'displayName', {
+                get: () => TranslationHelper.toggleRaw ? rawName : translation,
+                configurable: true
+            });
+            item._undergroundTranslationApplied = true;
+        });
+        console.log('[翻译] 地下物品ItemList displayName属性已修改');
+    }
 }
 
 // 执行新增翻译
@@ -950,31 +968,37 @@ function translateGameEnums() {
 function translateStones() {
     if (!Translation.Stone) return;
 
-    window.getStoneDisplayName = (stone) => {
-        if (TranslationHelper.toggleRaw) return stone;
+    const getStoneTranslation = (stone) => {
+        if (!stone) return undefined;
         return Translation.Stone.evolutionStone?.[stone]
             || Translation.Stone.megaStone?.[stone]
             || Translation.Stone.zCrystal?.[stone]
-            || stone;
+            // 兼容 Z 纯晶的 key（游戏里是 "Normalium Z"，旧数据可能是 "Normalium_Z"）
+            || Translation.Stone.zCrystal?.[String(stone).replace(/ /g, '_')]
+            || Translation.Stone.zCrystal?.[String(stone).replace(/_/g, ' ')];
     };
 
-    // 直接修改ItemList中进化石的displayName属性
+    window.getStoneDisplayName = (stone) => {
+        if (TranslationHelper.toggleRaw) return stone;
+        return getStoneTranslation(stone) || stone;
+    };
+
+    // 直接修改 ItemList 中相关道具的 displayName（进化石/超级石/Z纯晶）
     if (typeof ItemList !== 'undefined') {
         Object.entries(ItemList).forEach(([key, item]) => {
-            if (item && item.type === 'evolution') {
-                const translation = Translation.Stone.evolutionStone?.[key]
-                    || Translation.Stone.megaStone?.[key]
-                    || Translation.Stone.zCrystal?.[key];
-                if (translation) {
-                    const rawName = item.displayName;
-                    Object.defineProperty(item, 'displayName', {
-                        get: () => TranslationHelper.toggleRaw ? rawName : translation,
-                        configurable: true
-                    });
-                }
-            }
+            if (!item || item._stoneTranslationApplied) return;
+
+            const translation = getStoneTranslation(key) || getStoneTranslation(item.displayName);
+            if (!translation) return;
+
+            const rawName = item.displayName;
+            Object.defineProperty(item, 'displayName', {
+                get: () => TranslationHelper.toggleRaw ? rawName : translation,
+                configurable: true
+            });
+            item._stoneTranslationApplied = true;
         });
-        console.log('[翻译] 进化石displayName属性已修改');
+        console.log('[翻译] 进化石/超级石/Z纯晶 displayName属性已修改');
     }
 }
 
