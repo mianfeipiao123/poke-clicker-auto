@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦点击脚本
 // @namespace    https://github.com/mianfeipiao123/poke-clicker-auto
-// @version      0.10.45
+// @version      0.10.46
 // @description  内核汉化（任务线/NPC/成就/地区/城镇/道路/道馆）+ 镜像站 locales 回源（配合游戏内简体中文）
 // @homepageURL  https://github.com/mianfeipiao123/poke-clicker-auto
 // @supportURL   https://github.com/mianfeipiao123/poke-clicker-auto/issues
@@ -24,7 +24,7 @@
 /* global TownList, QuestLine:true, Notifier, MultipleQuestsQuest, App, NPC, NPCController, GameController, ko, Achievement:true, AchievementHandler, AchievementTracker, GameConstants, Routes, SubRegions, GymList, Gym, $ */
 
 ;(async () => {
-    const SCRIPT_VERSION = "0.10.45";
+    const SCRIPT_VERSION = "0.10.46";
     const SCRIPT_TITLE = "宝可梦点击脚本";
     const LOG_PREFIX = "PokeClickerHelper-Translation";
     const STORAGE_PREFIX = "PokeClickerHelper-Translation";
@@ -889,8 +889,19 @@ function translateBerries() {
 
     // 创建浆果显示名称获取函数
     window.getBerryDisplayName = (berryType) => {
-        const name = typeof berryType === 'number' ? BerryType[berryType] : berryType;
-        return TranslationHelper.toggleRaw ? name : (Translation.Berry[name] || name);
+        let name = berryType;
+        if (typeof berryType === 'number') {
+            name = BerryType?.[berryType] ?? berryType;
+        } else if (typeof berryType === 'string') {
+            const trimmed = berryType.trim();
+            if (/^-?\d+$/.test(trimmed)) {
+                const id = Number(trimmed);
+                name = BerryType?.[id] ?? trimmed;
+            } else {
+                name = trimmed;
+            }
+        }
+        return TranslationHelper.toggleRaw ? name : (Translation.Berry?.[name] || name);
     };
 
     // 修改浆果图鉴模态框中的浆果名称绑定
@@ -1911,6 +1922,18 @@ function getUITranslation(text) {
     return undefined;
 }
 
+function syncUIElementTranslationState(el, currentText) {
+    if (!el?.dataset) return;
+    const raw = el.dataset.pchUiRaw;
+    const translated = el.dataset.pchUiTranslated;
+    if (raw == null && translated == null) return;
+    if (translated != null && currentText === translated) return;
+    if (raw != null && currentText === raw) return;
+    // 文本已被 Knockout/游戏更新：以当前文本作为新的原文基线，避免用占位符覆盖动态内容
+    el.dataset.pchUiRaw = currentText;
+    delete el.dataset.pchUiTranslated;
+}
+
 function translateLeafUIElement(el) {
     if (!el || el.nodeType !== Node.ELEMENT_NODE) return;
     if (el.childElementCount > 0) return;
@@ -1919,13 +1942,7 @@ function translateLeafUIElement(el) {
     const currentTrimmed = currentText.trim();
     if (!currentTrimmed) return;
 
-    if (TranslationHelper.toggleRaw && el.dataset.pchUiRaw != null) {
-        const nextText = el.dataset.pchUiRaw;
-        if (nextText != null && nextText !== currentText) {
-            el.textContent = nextText;
-        }
-        return;
-    }
+    syncUIElementTranslationState(el, currentText);
 
     // 动态计数：Quests (0/4)
     const questsLabel = Translation?.UI?.labels?.Quests || '任务';
@@ -1949,6 +1966,14 @@ function translateLeafUIElement(el) {
         }
     }
 
+    if (TranslationHelper.toggleRaw && el.dataset.pchUiRaw != null) {
+        const nextText = el.dataset.pchUiRaw;
+        if (nextText != null && nextText !== currentText) {
+            el.textContent = nextText;
+        }
+        return;
+    }
+
     const rawText = el.dataset.pchUiRaw ?? currentText;
     const rawTrimmed = rawText.trim();
 
@@ -1962,6 +1987,7 @@ function translateLeafUIElement(el) {
                 el.dataset.pchUiRaw = currentText;
             }
             const nextText = el.dataset.pchUiRaw.replace(rawTrimmed, `[活动] ${translatedTitle}`);
+            el.dataset.pchUiTranslated = nextText;
             if (nextText !== currentText) {
                 el.textContent = nextText;
             }
@@ -1974,6 +2000,7 @@ function translateLeafUIElement(el) {
                 el.dataset.pchUiRaw = currentText;
             }
             const nextText = el.dataset.pchUiRaw.replace(rawTrimmed, `距离开始：${startsInMatch[1]}!`);
+            el.dataset.pchUiTranslated = nextText;
             if (nextText !== currentText) {
                 el.textContent = nextText;
             }
@@ -1986,6 +2013,7 @@ function translateLeafUIElement(el) {
                 el.dataset.pchUiRaw = currentText;
             }
             const nextText = el.dataset.pchUiRaw.replace(rawTrimmed, `距离结束：${endsInMatch[1]}!`);
+            el.dataset.pchUiTranslated = nextText;
             if (nextText !== currentText) {
                 el.textContent = nextText;
             }
@@ -1997,6 +2025,7 @@ function translateLeafUIElement(el) {
                 el.dataset.pchUiRaw = currentText;
             }
             const nextText = el.dataset.pchUiRaw.replace(rawTrimmed, '刚刚结束！');
+            el.dataset.pchUiTranslated = nextText;
             if (nextText !== currentText) {
                 el.textContent = nextText;
             }
@@ -2016,12 +2045,13 @@ function translateLeafUIElement(el) {
         el.dataset.pchUiRaw = currentText;
     }
     const nextText = TranslationHelper.toggleRaw ? el.dataset.pchUiRaw : el.dataset.pchUiRaw.replace(rawTrimmed, translation);
+    el.dataset.pchUiTranslated = nextText;
     if (nextText != null && nextText !== currentText) {
         el.textContent = nextText;
     }
 }
 
-const uiTextNodeRaw = new WeakMap();
+const uiTextNodeState = new WeakMap();
 
 function translateUITextNode(textNode) {
     if (!textNode || textNode.nodeType !== Node.TEXT_NODE) return;
@@ -2031,14 +2061,20 @@ function translateUITextNode(textNode) {
     // 仅处理“包含子元素”的节点（例如带 <br> / <strong> 的文本容器），避免和元素级翻译冲突
     if (parent.childElementCount === 0) return;
 
-    const storedRaw = uiTextNodeRaw.get(textNode);
-    const rawText = storedRaw ?? textNode.textContent;
+    const state = uiTextNodeState.get(textNode);
+    const currentText = textNode.textContent;
+    let rawText = state?.raw ?? currentText;
+    if (state && currentText !== state.raw && currentText !== state.translated) {
+        rawText = currentText;
+        uiTextNodeState.set(textNode, { raw: currentText, translated: undefined });
+    }
     const rawTrimmed = rawText.trim();
     if (!rawTrimmed) return;
 
     if (TranslationHelper.toggleRaw) {
-        if (storedRaw != null && textNode.textContent !== storedRaw) {
-            textNode.textContent = storedRaw;
+        const base = uiTextNodeState.get(textNode)?.raw;
+        if (base != null && textNode.textContent !== base) {
+            textNode.textContent = base;
         }
         return;
     }
@@ -2077,10 +2113,8 @@ function translateUITextNode(textNode) {
         return;
     }
 
-    if (storedRaw == null) {
-        uiTextNodeRaw.set(textNode, rawText);
-    }
     const nextText = rawText.replace(rawTrimmed, translation);
+    uiTextNodeState.set(textNode, { raw: rawText, translated: nextText });
     if (nextText !== textNode.textContent) {
         textNode.textContent = nextText;
     }
@@ -2119,7 +2153,7 @@ function translateUIRoot(root) {
     if (scope.tagName !== 'SCRIPT' && scope.tagName !== 'STYLE') {
         translateLeafUIElement(scope);
     }
-    scope.querySelectorAll('span, button, a, p, div, label, th, td, h1, h2, h3, h4, h5, h6, code').forEach((el) => {
+    scope.querySelectorAll('span, button, a, p, div, label, th, td, h1, h2, h3, h4, h5, h6, code, knockout').forEach((el) => {
         if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE') return;
         translateLeafUIElement(el);
     });
